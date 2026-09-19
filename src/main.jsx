@@ -141,7 +141,7 @@ function App() {
 
   if (user?.role === 'parent') {
     return (
-      <ParentPlaceholder
+      <ParentDashboard
         onLogout={logout}
       />
     );
@@ -757,7 +757,134 @@ function ChildDashboard({ user, onLogout }) {
   );
 }
 
-function ParentPlaceholder({ onLogout }) {
+function ParentDashboard({ onLogout }) {
+  const [children, setChildren] = useState([]);
+  const [laundry, setLaundry] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [approving, setApproving] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    loadLaundryApprovals();
+  }, []);
+
+  async function loadLaundryApprovals() {
+    setLoading(true);
+    setError('');
+
+    const [profilesResult, laundryResult] =
+      await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id,name')
+          .eq('role', 'child')
+          .eq('is_active', true),
+
+        supabase
+          .from('laundry_completions')
+          .select(
+            'id,child_id,laundry_date,step_name,approved_at'
+          )
+          .order('laundry_date', {
+            ascending: false
+          })
+      ]);
+
+    if (profilesResult.error || laundryResult.error) {
+      console.error(
+        profilesResult.error,
+        laundryResult.error
+      );
+
+      setError(
+        'Could not load laundry approvals.'
+      );
+
+      setLoading(false);
+      return;
+    }
+
+    setChildren(profilesResult.data || []);
+    setLaundry(laundryResult.data || []);
+    setLoading(false);
+  }
+
+  async function approveLaundry(childId, laundryDate) {
+    if (approving) return;
+
+    setApproving(`${childId}-${laundryDate}`);
+    setError('');
+
+    const { error: approvalError } =
+      await supabase.rpc('approve_laundry', {
+        p_child_id: childId,
+        p_laundry_date: laundryDate
+      });
+
+    if (approvalError) {
+      console.error(approvalError);
+
+      setError(
+        'Laundry could not be approved. Try again.'
+      );
+
+      setApproving(null);
+      return;
+    }
+
+    await loadLaundryApprovals();
+    setApproving(null);
+  }
+
+  const groupedLaundry = laundry.reduce(
+    (groups, item) => {
+      const key =
+        `${item.child_id}-${item.laundry_date}`;
+
+      if (!groups[key]) {
+        groups[key] = {
+          childId: item.child_id,
+          date: item.laundry_date,
+          steps: [],
+          approved: true
+        };
+      }
+
+      groups[key].steps.push(item.step_name);
+
+      if (!item.approved_at) {
+        groups[key].approved = false;
+      }
+
+      return groups;
+    },
+    {}
+  );
+
+  const laundryGroups = Object.values(
+    groupedLaundry
+  );
+
+  const pendingLaundry = laundryGroups.filter(
+    group =>
+      group.steps.length === 4 &&
+      !group.approved
+  );
+
+  const approvedLaundry = laundryGroups.filter(
+    group =>
+      group.steps.length === 4 &&
+      group.approved
+  );
+
+  function childName(childId) {
+    return (
+      children.find(
+        child => child.id === childId
+      )?.name || 'Child'
+    );
+  }
+
   return (
     <main className="tm-dashboard">
       <header className="tm-dashboard-header">
@@ -785,9 +912,146 @@ function ParentPlaceholder({ onLogout }) {
         </h1>
 
         <p>
-          We'll build the full parent control center
-          after the boys' board.
+          Review family activity and approve completed
+          missions.
         </p>
+      </section>
+
+      <section
+        style={{
+          maxWidth: '1100px',
+          margin: '0 auto',
+          padding: '0 24px 80px'
+        }}
+      >
+        <div className="section-heading">
+          <div>
+            <span>NEEDS YOUR ATTENTION</span>
+            <h2>Laundry Approvals</h2>
+          </div>
+
+          <Shirt size={24} />
+        </div>
+
+        {error && (
+          <div className="tm-login-error">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <p>Loading laundry...</p>
+        ) : pendingLaundry.length === 0 ? (
+          <div className="weekly-placeholder">
+            <div className="weekly-icon">
+              <Check size={26} />
+            </div>
+
+            <div>
+              <small>ALL CAUGHT UP</small>
+
+              <strong>
+                No laundry waiting for approval
+              </strong>
+
+              <p>
+                When one of the boys completes all four
+                laundry steps, it will appear here.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mission-list">
+            {pendingLaundry.map(group => {
+              const approvalKey =
+                `${group.childId}-${group.date}`;
+
+              const isApproving =
+                approving === approvalKey;
+
+              return (
+                <div
+                  className="mission-row"
+                  key={approvalKey}
+                >
+                  <div className="mission-checkbox">
+                    <Shirt size={18} />
+                  </div>
+
+                  <span>
+                    <strong>
+                      {childName(group.childId)}
+                    </strong>
+                    {' — '}
+                    {group.date}
+                    {' — '}
+                    Wash, Dry, Fold & Put Away
+                  </span>
+
+                  <button
+                    className="tm-pin-submit"
+                    style={{
+                      width: 'auto',
+                      margin: 0,
+                      padding: '10px 18px'
+                    }}
+                    disabled={Boolean(approving)}
+                    onClick={() =>
+                      approveLaundry(
+                        group.childId,
+                        group.date
+                      )
+                    }
+                  >
+                    {isApproving
+                      ? 'Approving...'
+                      : 'Approve +4'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {approvedLaundry.length > 0 && (
+          <>
+            <div
+              className="section-heading lower-heading"
+            >
+              <div>
+                <span>RECENT</span>
+                <h2>Approved Laundry</h2>
+              </div>
+
+              <Check size={22} />
+            </div>
+
+            <div className="mission-list">
+              {approvedLaundry
+                .slice(0, 6)
+                .map(group => (
+                  <div
+                    className="mission-row mission-done"
+                    key={
+                      `${group.childId}-${group.date}`
+                    }
+                  >
+                    <div className="mission-checkbox">
+                      <Check size={18} />
+                    </div>
+
+                    <span>
+                      {childName(group.childId)}
+                      {' — '}
+                      {group.date}
+                    </span>
+
+                    <strong>+4</strong>
+                  </div>
+                ))}
+            </div>
+          </>
+        )}
       </section>
     </main>
   );
