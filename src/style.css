@@ -514,3 +514,603 @@ input {
     padding: 40px 24px 28px;
   }
 }
+/* =========================================================
+   TEAM MILLER — CHILD MISSION BOARDS
+   ========================================================= */
+
+.child-board {
+  --accent: #f3cb59;
+  --accent-soft: #fae8a8;
+  --accent-dark: #9c8138;
+
+  min-height: 100vh;
+  padding: 45px clamp(25px, 6vw, 110px) 80px;
+  color: #171634;
+  background-color: #faf7f0;
+  background-image:
+    linear-gradient(rgba(40, 38, 65, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(40, 38, 65, 0.035) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+
+/* Individual child colors */
+
+.child-kiegan {
+  --accent: #f3cb59;
+  --accent-soft: #fae8a8;
+  --accent-dark: #9c8138;
+}
+
+.child-levi {
+  --accent: #beddd4;
+  --accent-soft: #e0eee9;
+  --accent-dark: #47766c;
+}
+
+.child-will {
+  --accent: #efaa91;
+  --accent-soft: #f8d5c8;
+  --accent-dark: #a65f49;
+}
+
+/* Header */
+
+.child-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+}
+
+.child-header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.child-home-button,
+.child-logout-button {
+  border: 1px solid rgba(36, 35, 66, 0.14);
+  background: rgba(255, 255, 255, 0.55);
+  color: #55546f;
+  padding: 10px 15px;
+  border-radius: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.child-home-button:hover,
+.child-logout-button:hover {
+  background: white;
+  color: #242342;
+}
+
+/* Welcome */
+
+.child-welcome {
+  margin: 80px 0 45px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 40px;
+}
+
+.child-welcome h1 {
+  margin: 20px 0 14px;
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: clamp(55px, 6vw, 88px);
+  line-height: 0.95;
+  font-weight: 400;
+  letter-spacing: -2px;
+}
+
+.child-welcome h1 em {
+  color: var(--accent-dark);
+  font-style: normal;
+}
+
+.child-welcome p {
+  color: #6b6981;
+  font-size: 20px;
+  margin: 0;
+}
+
+.child-avatar {
+  width: 150px;
+  height: 150px;
+  flex: 0 0 150px;
+  border-radius: 42px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 70px;
+  color: #242342;
+  box-shadow: 12px 12px 0 rgba(36, 35, 66, 0.07);
+}
+
+/* Point cards */
+
+.points-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 45px;
+}
+
+.point-card {
+  min-height: 205px;
+  border-radius: 28px;
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.primary-point {
+  background: var(--accent);
+}
+
+.reading-point {
+  background: #beddd4;
+}
+
+.reward-point {
+  background: #fffaf1;
+  border: 1px solid #e8dfd1;
+}
+
+.point-icon {
+  width: 45px;
+  height: 45px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 17px;
+}
+
+.point-card > span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.3px;
+  color: #55536a;
+}
+
+.point-card > strong {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 53px;
+  line-height: 1;
+  margin: 5px 0 7px;
+  font-weight: 400;
+}
+
+.point-card .reward-name {
+  font-size: 29px;
+  line-height: 1.08;
+  margin-top: 10px;
+}
+
+.point-card > small {
+  color: #656477;
+  font-size: 13px;
+}
+
+.reward-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 20px;
+  background: #e8e0d4;
+  overflow: hidden;
+  margin: 14px 0 7px;
+}
+
+.reward-progress > div {
+  height: 100%;
+  border-radius: inherit;
+  background: #f3c958;
+}
+
+/* Main board */
+
+.board-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.board-main {
+  background: rgba(255, 250, 241, 0.82);
+  border: 1px solid #e8dfd1;
+  border-radius: 30px;
+  padding: 32px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.section-heading span {
+  display: block;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  margin-bottom: 3px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.mission-count {
+  background: var(--accent-soft);
+  color: #242342;
+  border-radius: 30px;
+  padding: 9px 16px;
+  font-weight: 800;
+}
+
+/* Daily mission rows */
+
+.mission-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mission-row {
+  width: 100%;
+  border: 1px solid #e8e1d6;
+  background: white;
+  border-radius: 16px;
+  padding: 16px 17px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #29283f;
+  cursor: pointer;
+  text-align: left;
+  transition: 0.15s ease;
+}
+
+.mission-row:hover {
+  transform: translateX(3px);
+  border-color: var(--accent);
+}
+
+.mission-checkbox {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  border: 2px solid #cfc9bd;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mission-row > span {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.mission-row > strong {
+  margin-left: auto;
+  color: var(--accent-dark);
+  font-size: 14px;
+}
+
+.mission-done {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.mission-done .mission-checkbox {
+  background: #242342;
+  border-color: #242342;
+  color: white;
+}
+
+.mission-done > span {
+  text-decoration: line-through;
+  opacity: 0.62;
+}
+
+/* Weekly assignment */
+
+.lower-heading {
+  margin-top: 38px;
+}
+
+.weekly-placeholder {
+  background: #f4eee4;
+  border-radius: 19px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 17px;
+}
+
+.weekly-icon {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 16px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weekly-placeholder small {
+  display: block;
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #858071;
+  margin-bottom: 3px;
+}
+
+.weekly-placeholder strong {
+  display: block;
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 21px;
+}
+
+.weekly-placeholder p {
+  margin: 4px 0 0;
+  color: #747183;
+  font-size: 14px;
+}
+
+/* Sidebar */
+
+.board-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.side-card {
+  background: #fffaf1;
+  border: 1px solid #e8dfd1;
+  border-radius: 25px;
+  padding: 24px;
+}
+
+.side-card-title {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+}
+
+.side-card-title > svg {
+  color: var(--accent-dark);
+}
+
+.side-card-title small {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #8a8477;
+}
+
+.side-card-title h3 {
+  margin: 1px 0 0;
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 27px;
+  font-weight: 400;
+}
+
+.side-card > p {
+  color: #686779;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* Laundry */
+
+.laundry-card {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.laundry-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.laundry-steps > div {
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.laundry-steps span {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #242342;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.laundry-note {
+  margin-top: 15px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: #656273;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Sidebar buttons */
+
+.bonus-card button,
+.reading-card button {
+  width: 100%;
+  border: 0;
+  border-radius: 13px;
+  padding: 13px 15px;
+  margin-top: 6px;
+  background: #242342;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.bonus-card button:hover,
+.reading-card button:hover {
+  opacity: 0.9;
+}
+
+.reading-card {
+  background: #beddd4;
+  border-color: transparent;
+}
+
+/* Verse */
+
+.verse-card {
+  text-align: center;
+  background: #242342;
+  color: white;
+}
+
+.verse-card svg {
+  color: #f3c958;
+}
+
+.verse-card p {
+  color: white;
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.verse-card strong {
+  color: #f3c958;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
+/* Tablet */
+
+@media (max-width: 950px) {
+  .points-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reward-point {
+    grid-column: 1 / -1;
+  }
+
+  .board-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .board-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Phone */
+
+@media (max-width: 650px) {
+  .child-board {
+    padding: 28px 18px 60px;
+  }
+
+  .child-header-actions {
+    gap: 5px;
+  }
+
+  .child-home-button,
+  .child-logout-button {
+    padding: 9px;
+    font-size: 0;
+  }
+
+  .child-welcome {
+    margin: 65px 0 35px;
+    align-items: flex-end;
+  }
+
+  .child-welcome h1 {
+    font-size: 50px;
+    letter-spacing: -1px;
+  }
+
+  .child-welcome p {
+    font-size: 16px;
+  }
+
+  .child-avatar {
+    width: 80px;
+    height: 80px;
+    flex-basis: 80px;
+    border-radius: 24px;
+    font-size: 40px;
+  }
+
+  .points-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reward-point {
+    grid-column: auto;
+  }
+
+  .board-main {
+    padding: 22px 16px;
+  }
+
+  .section-heading h2 {
+    font-size: 29px;
+  }
+
+  .mission-row {
+    padding: 14px 12px;
+  }
+
+  .mission-row > span {
+    font-size: 14px;
+  }
+
+  .board-side {
+    display: flex;
+  }
+
+  .laundry-steps {
+    grid-template-columns: 1fr 1fr;
+  }
+}
