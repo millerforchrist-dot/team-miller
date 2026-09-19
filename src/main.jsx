@@ -59,24 +59,26 @@ function App() {
   const [checkingPin, setCheckingPin] = useState(false);
 
   useEffect(() => {
-    async function loadProfiles() {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id,name,role')
-        .eq('is_active', true);
-
-      if (error) {
-        console.error(error);
-        setLoginError('Could not connect to TEAM MILLER.');
-      } else {
-        setProfiles(data || []);
-      }
-
-      setLoading(false);
-    }
-
     loadProfiles();
   }, []);
+
+  async function loadProfiles() {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,name,role')
+      .eq('is_active', true);
+
+    if (error) {
+      console.error(error);
+      setLoginError('Could not connect to TEAM MILLER.');
+    } else {
+      setProfiles(data || []);
+    }
+
+    setLoading(false);
+  }
 
   function chooseProfile(profile) {
     setSelectedProfile(profile);
@@ -92,31 +94,97 @@ function App() {
     setCheckingPin(true);
     setLoginError('');
 
-    const { data, error } = await supabase.rpc('verify_profile_pin', {
-      profile_name: selectedProfile.name,
-      entered_pin: pin.trim()
-    });
+    /*
+      Parent login is still using the existing PIN check for now.
+      We will give the Parent Dashboard its own secure Auth account
+      when we build that section.
+    */
+    if (selectedProfile.role === 'parent') {
+      const { data, error } = await supabase.rpc(
+        'verify_profile_pin',
+        {
+          profile_name: selectedProfile.name,
+          entered_pin: pin.trim()
+        }
+      );
 
-    setCheckingPin(false);
+      setCheckingPin(false);
 
-    if (error) {
-      console.error(error);
-      setLoginError('There was a problem verifying the PIN.');
+      if (error) {
+        console.error(error);
+        setLoginError('There was a problem verifying the PIN.');
+        return;
+      }
+
+      if (!data) {
+        setLoginError('That PIN is not correct. Try again.');
+        setPin('');
+        return;
+      }
+
+      setUser(selectedProfile);
+      setSelectedProfile(null);
+      setPin('');
       return;
     }
 
-    if (!data) {
+    /*
+      CHILD LOGIN
+
+      1. Send name + PIN to the secure Edge Function.
+      2. Edge Function verifies the PIN server-side.
+      3. Edge Function returns a one-time Supabase Auth token.
+      4. Browser exchanges that token for a real Auth session.
+    */
+
+    const { data, error } = await supabase.functions.invoke(
+      'pin-login',
+      {
+        body: {
+          profileName: selectedProfile.name,
+          pin: pin.trim()
+        }
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      setCheckingPin(false);
       setLoginError('That PIN is not correct. Try again.');
       setPin('');
       return;
     }
 
-    setUser(selectedProfile);
+    if (!data?.tokenHash || !data?.profile) {
+      setCheckingPin(false);
+      setLoginError('Could not open your mission board.');
+      setPin('');
+      return;
+    }
+
+    const { error: verifyError } =
+      await supabase.auth.verifyOtp({
+        token_hash: data.tokenHash,
+        type: 'magiclink'
+      });
+
+    if (verifyError) {
+      console.error(verifyError);
+      setCheckingPin(false);
+      setLoginError('Could not start your secure session.');
+      setPin('');
+      return;
+    }
+
+    setCheckingPin(false);
+    setUser(data.profile);
     setSelectedProfile(null);
     setPin('');
   }
 
-  function logout() {
+  async function logout() {
+    await supabase.auth.signOut();
+
     setUser(null);
     setSelectedProfile(null);
     setPin('');
@@ -124,18 +192,31 @@ function App() {
   }
 
   if (user?.role === 'child') {
-    return <ChildDashboard user={user} onLogout={logout} />;
+    return (
+      <ChildDashboard
+        user={user}
+        onLogout={logout}
+      />
+    );
   }
 
   if (user?.role === 'parent') {
-    return <ParentPlaceholder onLogout={logout} />;
+    return (
+      <ParentPlaceholder
+        onLogout={logout}
+      />
+    );
   }
 
   const children = ['Kiegan', 'Levi', 'Will']
-    .map(name => profiles.find(profile => profile.name === name))
+    .map(name =>
+      profiles.find(profile => profile.name === name)
+    )
     .filter(Boolean);
 
-  const parent = profiles.find(profile => profile.role === 'parent');
+  const parent = profiles.find(
+    profile => profile.role === 'parent'
+  );
 
   return (
     <main className="tm-home">
@@ -167,7 +248,8 @@ function App() {
         </h1>
 
         <p className="tm-hero-copy">
-          Choose your name and enter your private PIN to open your mission board.
+          Choose your name and enter your private PIN to
+          open your mission board.
         </p>
       </section>
 
@@ -191,7 +273,10 @@ function App() {
                   <strong>{profile.name}</strong>
                 </div>
 
-                <ArrowRight className="tm-profile-arrow" size={28} />
+                <ArrowRight
+                  className="tm-profile-arrow"
+                  size={28}
+                />
               </button>
             ))}
           </div>
@@ -214,7 +299,8 @@ function App() {
 }
 
 function ChildDashboard({ user, onLogout }) {
-  const config = CHILD_CONFIG[user.name] || CHILD_CONFIG.Kiegan;
+  const config =
+    CHILD_CONFIG[user.name] || CHILD_CONFIG.Kiegan;
 
   const [missions, setMissions] = useState([]);
   const [completedIds, setCompletedIds] = useState([]);
@@ -233,25 +319,28 @@ function ChildDashboard({ user, onLogout }) {
 
     const today = new Date().toLocaleDateString('en-CA');
 
-    const [missionsResult, completionsResult, pointsResult] =
-      await Promise.all([
-        supabase
-          .from('daily_missions')
-          .select('id,name,point_value,sort_order')
-          .eq('active', true)
-          .order('sort_order'),
+    const [
+      missionsResult,
+      completionsResult,
+      pointsResult
+    ] = await Promise.all([
+      supabase
+        .from('daily_missions')
+        .select('id,name,point_value,sort_order')
+        .eq('active', true)
+        .order('sort_order'),
 
-        supabase
-          .from('daily_mission_completions')
-          .select('mission_id')
-          .eq('child_id', user.id)
-          .eq('mission_date', today),
+      supabase
+        .from('daily_mission_completions')
+        .select('mission_id')
+        .eq('child_id', user.id)
+        .eq('mission_date', today),
 
-        supabase
-          .from('mission_point_transactions')
-          .select('amount')
-          .eq('child_id', user.id)
-      ]);
+      supabase
+        .from('mission_point_transactions')
+        .select('amount')
+        .eq('child_id', user.id)
+    ]);
 
     if (
       missionsResult.error ||
@@ -264,7 +353,10 @@ function ChildDashboard({ user, onLogout }) {
         pointsResult.error
       );
 
-      setBoardError('Could not load your mission board.');
+      setBoardError(
+        'Could not load your mission board.'
+      );
+
       setBoardLoading(false);
       return;
     }
@@ -272,10 +364,14 @@ function ChildDashboard({ user, onLogout }) {
     setMissions(missionsResult.data || []);
 
     setCompletedIds(
-      (completionsResult.data || []).map(item => item.mission_id)
+      (completionsResult.data || []).map(
+        item => item.mission_id
+      )
     );
 
-    const totalPoints = (pointsResult.data || []).reduce(
+    const totalPoints = (
+      pointsResult.data || []
+    ).reduce(
       (total, transaction) =>
         total + Number(transaction.amount || 0),
       0
@@ -288,7 +384,8 @@ function ChildDashboard({ user, onLogout }) {
   async function toggleMission(mission) {
     if (savingMission) return;
 
-    const isCompleted = completedIds.includes(mission.id);
+    const isCompleted =
+      completedIds.includes(mission.id);
 
     setSavingMission(mission.id);
     setBoardError('');
@@ -297,14 +394,21 @@ function ChildDashboard({ user, onLogout }) {
       ? 'uncomplete_daily_mission'
       : 'complete_daily_mission';
 
-    const { error } = await supabase.rpc(functionName, {
-      p_child_id: user.id,
-      p_mission_id: mission.id
-    });
+    const { error } = await supabase.rpc(
+      functionName,
+      {
+        p_child_id: user.id,
+        p_mission_id: mission.id
+      }
+    );
 
     if (error) {
       console.error(error);
-      setBoardError('That mission could not be updated. Try again.');
+
+      setBoardError(
+        'That mission could not be updated. Try again.'
+      );
+
       setSavingMission(null);
       return;
     }
@@ -320,21 +424,32 @@ function ChildDashboard({ user, onLogout }) {
   );
 
   const progress = nextReward
-    ? Math.min((missionPoints / nextReward.points) * 100, 100)
+    ? Math.min(
+        (missionPoints / nextReward.points) * 100,
+        100
+      )
     : 100;
 
   return (
-    <main className={`child-board child-${config.className}`}>
+    <main
+      className={`child-board child-${config.className}`}
+    >
       <header className="child-header">
         <Brand />
 
         <div className="child-header-actions">
-          <button className="child-home-button" onClick={onLogout}>
+          <button
+            className="child-home-button"
+            onClick={onLogout}
+          >
             <Home size={18} />
             Home
           </button>
 
-          <button className="child-logout-button" onClick={onLogout}>
+          <button
+            className="child-logout-button"
+            onClick={onLogout}
+          >
             <LogOut size={18} />
             Log out
           </button>
@@ -355,7 +470,8 @@ function ChildDashboard({ user, onLogout }) {
           </h1>
 
           <p>
-            Small things done faithfully make a big difference.
+            Small things done faithfully make a big
+            difference.
           </p>
         </div>
 
@@ -382,7 +498,9 @@ function ChildDashboard({ user, onLogout }) {
 
           <span>READING POINTS</span>
           <strong>{readingPoints}</strong>
-          <small>Every book is an adventure.</small>
+          <small>
+            Every book is an adventure.
+          </small>
         </div>
 
         <div className="point-card reward-point">
@@ -393,19 +511,27 @@ function ChildDashboard({ user, onLogout }) {
           <span>NEXT REWARD</span>
 
           <strong className="reward-name">
-            {nextReward?.name || 'All rewards unlocked!'}
+            {nextReward?.name ||
+              'All rewards unlocked!'}
           </strong>
 
           {nextReward && (
             <>
-              <small>{nextReward.points} Mission Points</small>
+              <small>
+                {nextReward.points} Mission Points
+              </small>
 
               <div className="reward-progress">
-                <div style={{ width: `${progress}%` }} />
+                <div
+                  style={{
+                    width: `${progress}%`
+                  }}
+                />
               </div>
 
               <small>
-                {nextReward.points - missionPoints} points to go
+                {nextReward.points - missionPoints}{' '}
+                points to go
               </small>
             </>
           )}
@@ -421,7 +547,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <div className="mission-count">
-              {completedIds.length} / {missions.length || 6}
+              {completedIds.length} /{' '}
+              {missions.length || 6}
             </div>
           </div>
 
@@ -436,8 +563,11 @@ function ChildDashboard({ user, onLogout }) {
           ) : (
             <div className="mission-list">
               {missions.map(mission => {
-                const done = completedIds.includes(mission.id);
-                const saving = savingMission === mission.id;
+                const done =
+                  completedIds.includes(mission.id);
+
+                const saving =
+                  savingMission === mission.id;
 
                 return (
                   <button
@@ -445,7 +575,9 @@ function ChildDashboard({ user, onLogout }) {
                     className={`mission-row ${
                       done ? 'mission-done' : ''
                     }`}
-                    onClick={() => toggleMission(mission)}
+                    onClick={() =>
+                      toggleMission(mission)
+                    }
                     disabled={Boolean(savingMission)}
                   >
                     <div className="mission-checkbox">
@@ -453,7 +585,9 @@ function ChildDashboard({ user, onLogout }) {
                     </div>
 
                     <span>
-                      {saving ? 'Saving...' : mission.name}
+                      {saving
+                        ? 'Saving...'
+                        : mission.name}
                     </span>
 
                     <strong>
@@ -481,9 +615,14 @@ function ChildDashboard({ user, onLogout }) {
 
             <div>
               <small>THIS WEEK'S JOB</small>
-              <strong>Weekly assignment coming next</strong>
+
+              <strong>
+                Weekly assignment coming next
+              </strong>
+
               <p>
-                Mom or Dad will assign your rotating family job.
+                Mom or Dad will assign your rotating
+                family job.
               </p>
             </div>
           </div>
@@ -506,12 +645,14 @@ function ChildDashboard({ user, onLogout }) {
             </p>
 
             <div className="laundry-steps">
-              {LAUNDRY_STEPS.map((step, index) => (
-                <div key={step}>
-                  <span>{index + 1}</span>
-                  {step}
-                </div>
-              ))}
+              {LAUNDRY_STEPS.map(
+                (step, index) => (
+                  <div key={step}>
+                    <span>{index + 1}</span>
+                    {step}
+                  </div>
+                )
+              )}
             </div>
 
             <div className="laundry-note">
@@ -531,8 +672,9 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Bible reading, prayer, kindness, Scripture memory and
-              helping without being asked.
+              Bible reading, prayer, kindness,
+              Scripture memory and helping without
+              being asked.
             </p>
 
             <button>
@@ -552,8 +694,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Find your book, take your 10-question quiz, and earn
-              Reading Points.
+              Find your book, take your 10-question
+              quiz, and earn Reading Points.
             </p>
 
             <button>
@@ -566,8 +708,8 @@ function ChildDashboard({ user, onLogout }) {
             <Trophy size={22} />
 
             <p>
-              “Whatever you do, work at it with all your heart, as
-              working for the Lord.”
+              “Whatever you do, work at it with all
+              your heart, as working for the Lord.”
             </p>
 
             <strong>COLOSSIANS 3:23</strong>
@@ -584,7 +726,10 @@ function ParentPlaceholder({ onLogout }) {
       <header className="tm-dashboard-header">
         <Brand />
 
-        <button className="tm-text-button" onClick={onLogout}>
+        <button
+          className="tm-text-button"
+          onClick={onLogout}
+        >
           <LogOut size={18} />
           Log out
         </button>
@@ -603,8 +748,8 @@ function ParentPlaceholder({ onLogout }) {
         </h1>
 
         <p>
-          We'll build the full parent control center after the boys'
-          board.
+          We'll build the full parent control center
+          after the boys' board.
         </p>
       </section>
     </main>
@@ -624,11 +769,16 @@ function PinModal({
     <div
       className="tm-modal-backdrop"
       onMouseDown={e => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
       }}
     >
       <div className="tm-pin-modal">
-        <button className="tm-modal-close" onClick={onClose}>
+        <button
+          className="tm-modal-close"
+          onClick={onClose}
+        >
           ×
         </button>
 
@@ -663,8 +813,13 @@ function PinModal({
             type="submit"
             disabled={checking || !pin.trim()}
           >
-            {checking ? 'Checking...' : 'Open my board'}
-            {!checking && <ArrowRight size={19} />}
+            {checking
+              ? 'Checking...'
+              : 'Open my board'}
+
+            {!checking && (
+              <ArrowRight size={19} />
+            )}
           </button>
         </form>
       </div>
@@ -685,4 +840,6 @@ function Brand() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(
+  document.getElementById('root')
+).render(<App />);
