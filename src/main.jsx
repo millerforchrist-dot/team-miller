@@ -38,21 +38,7 @@ const CHILD_CONFIG = {
   }
 };
 
-const DAILY_MISSIONS = [
-  'Make Bed',
-  'Bedroom Picked Up',
-  'Dirty Clothes in Hamper',
-  'Family 10-Minute Cleanup',
-  'Be Respectful & Have a Good Attitude',
-  'Read for 20 Minutes'
-];
-
-const LAUNDRY_STEPS = [
-  'Wash',
-  'Dry',
-  'Fold',
-  'Put Away'
-];
+const LAUNDRY_STEPS = ['Wash', 'Dry', 'Fold', 'Put Away'];
 
 const REWARDS = [
   { points: 25, name: 'Pick Dessert' },
@@ -142,7 +128,7 @@ function App() {
   }
 
   if (user?.role === 'parent') {
-    return <ParentPlaceholder user={user} onLogout={logout} />;
+    return <ParentPlaceholder onLogout={logout} />;
   }
 
   const children = ['Kiegan', 'Levi', 'Will']
@@ -230,19 +216,109 @@ function App() {
 function ChildDashboard({ user, onLogout }) {
   const config = CHILD_CONFIG[user.name] || CHILD_CONFIG.Kiegan;
 
-  const [completed, setCompleted] = useState([]);
+  const [missions, setMissions] = useState([]);
+  const [completedIds, setCompletedIds] = useState([]);
+  const [missionPoints, setMissionPoints] = useState(0);
+  const [boardLoading, setBoardLoading] = useState(true);
+  const [savingMission, setSavingMission] = useState(null);
+  const [boardError, setBoardError] = useState('');
 
-  function toggleMission(index) {
-    setCompleted(current =>
-      current.includes(index)
-        ? current.filter(item => item !== index)
-        : [...current, index]
+  useEffect(() => {
+    loadBoard();
+  }, [user.id]);
+
+  async function loadBoard() {
+    setBoardLoading(true);
+    setBoardError('');
+
+    const today = new Date().toLocaleDateString('en-CA');
+
+    const [missionsResult, completionsResult, pointsResult] =
+      await Promise.all([
+        supabase
+          .from('daily_missions')
+          .select('id,name,point_value,sort_order')
+          .eq('active', true)
+          .order('sort_order'),
+
+        supabase
+          .from('daily_mission_completions')
+          .select('mission_id')
+          .eq('child_id', user.id)
+          .eq('mission_date', today),
+
+        supabase
+          .from('mission_point_transactions')
+          .select('amount')
+          .eq('child_id', user.id)
+      ]);
+
+    if (
+      missionsResult.error ||
+      completionsResult.error ||
+      pointsResult.error
+    ) {
+      console.error(
+        missionsResult.error,
+        completionsResult.error,
+        pointsResult.error
+      );
+
+      setBoardError('Could not load your mission board.');
+      setBoardLoading(false);
+      return;
+    }
+
+    setMissions(missionsResult.data || []);
+
+    setCompletedIds(
+      (completionsResult.data || []).map(item => item.mission_id)
     );
+
+    const totalPoints = (pointsResult.data || []).reduce(
+      (total, transaction) =>
+        total + Number(transaction.amount || 0),
+      0
+    );
+
+    setMissionPoints(totalPoints);
+    setBoardLoading(false);
   }
 
-  const missionPoints = 0;
+  async function toggleMission(mission) {
+    if (savingMission) return;
+
+    const isCompleted = completedIds.includes(mission.id);
+
+    setSavingMission(mission.id);
+    setBoardError('');
+
+    const functionName = isCompleted
+      ? 'uncomplete_daily_mission'
+      : 'complete_daily_mission';
+
+    const { error } = await supabase.rpc(functionName, {
+      p_child_id: user.id,
+      p_mission_id: mission.id
+    });
+
+    if (error) {
+      console.error(error);
+      setBoardError('That mission could not be updated. Try again.');
+      setSavingMission(null);
+      return;
+    }
+
+    await loadBoard();
+    setSavingMission(null);
+  }
+
   const readingPoints = 0;
-  const nextReward = REWARDS.find(reward => reward.points > missionPoints);
+
+  const nextReward = REWARDS.find(
+    reward => reward.points > missionPoints
+  );
+
   const progress = nextReward
     ? Math.min((missionPoints / nextReward.points) * 100, 100)
     : 100;
@@ -315,6 +391,7 @@ function ChildDashboard({ user, onLogout }) {
           </div>
 
           <span>NEXT REWARD</span>
+
           <strong className="reward-name">
             {nextReward?.name || 'All rewards unlocked!'}
           </strong>
@@ -344,31 +421,49 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <div className="mission-count">
-              {completed.length} / {DAILY_MISSIONS.length}
+              {completedIds.length} / {missions.length || 6}
             </div>
           </div>
 
-          <div className="mission-list">
-            {DAILY_MISSIONS.map((mission, index) => {
-              const done = completed.includes(index);
+          {boardError && (
+            <div className="tm-login-error">
+              {boardError}
+            </div>
+          )}
 
-              return (
-                <button
-                  key={mission}
-                  className={`mission-row ${done ? 'mission-done' : ''}`}
-                  onClick={() => toggleMission(index)}
-                >
-                  <div className="mission-checkbox">
-                    {done && <Check size={20} />}
-                  </div>
+          {boardLoading ? (
+            <p>Loading today's missions...</p>
+          ) : (
+            <div className="mission-list">
+              {missions.map(mission => {
+                const done = completedIds.includes(mission.id);
+                const saving = savingMission === mission.id;
 
-                  <span>{mission}</span>
+                return (
+                  <button
+                    key={mission.id}
+                    className={`mission-row ${
+                      done ? 'mission-done' : ''
+                    }`}
+                    onClick={() => toggleMission(mission)}
+                    disabled={Boolean(savingMission)}
+                  >
+                    <div className="mission-checkbox">
+                      {done && <Check size={20} />}
+                    </div>
 
-                  <strong>+1</strong>
-                </button>
-              );
-            })}
-          </div>
+                    <span>
+                      {saving ? 'Saving...' : mission.name}
+                    </span>
+
+                    <strong>
+                      +{Number(mission.point_value)}
+                    </strong>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="section-heading lower-heading">
             <div>
@@ -398,6 +493,7 @@ function ChildDashboard({ user, onLogout }) {
           <div className="side-card laundry-card">
             <div className="side-card-title">
               <Shirt size={23} />
+
               <div>
                 <small>LAUNDRY DAY</small>
                 <h3>{config.laundryDay}</h3>
@@ -405,7 +501,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Your laundry day is always <strong>{config.laundryDay}</strong>.
+              Your laundry day is always{' '}
+              <strong>{config.laundryDay}</strong>.
             </p>
 
             <div className="laundry-steps">
@@ -426,6 +523,7 @@ function ChildDashboard({ user, onLogout }) {
           <div className="side-card bonus-card">
             <div className="side-card-title">
               <Star size={23} />
+
               <div>
                 <small>GO ABOVE & BEYOND</small>
                 <h3>Bonus Missions</h3>
@@ -433,8 +531,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Bible reading, prayer, kindness, Scripture memory and helping
-              without being asked.
+              Bible reading, prayer, kindness, Scripture memory and
+              helping without being asked.
             </p>
 
             <button>
@@ -446,6 +544,7 @@ function ChildDashboard({ user, onLogout }) {
           <div className="side-card reading-card">
             <div className="side-card-title">
               <BookOpen size={23} />
+
               <div>
                 <small>READ • QUIZ • GROW</small>
                 <h3>Reading Challenge</h3>
@@ -453,8 +552,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Find your book, take your 10-question quiz, and earn Reading
-              Points.
+              Find your book, take your 10-question quiz, and earn
+              Reading Points.
             </p>
 
             <button>
@@ -467,8 +566,8 @@ function ChildDashboard({ user, onLogout }) {
             <Trophy size={22} />
 
             <p>
-              “Whatever you do, work at it with all your heart, as working for
-              the Lord.”
+              “Whatever you do, work at it with all your heart, as
+              working for the Lord.”
             </p>
 
             <strong>COLOSSIANS 3:23</strong>
@@ -504,7 +603,8 @@ function ParentPlaceholder({ onLogout }) {
         </h1>
 
         <p>
-          We'll build the full parent control center after the boys' board.
+          We'll build the full parent control center after the boys'
+          board.
         </p>
       </section>
     </main>
