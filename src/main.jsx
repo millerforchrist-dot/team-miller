@@ -28,6 +28,13 @@ const CHILD_CONFIG = {
 
 const LAUNDRY_STEPS = ['Wash', 'Dry', 'Fold', 'Put Away'];
 
+const WEEKLY_TASKS = [
+  'Bathrooms',
+  'Dishes',
+  'Trash & Wipe Counters',
+  'Wipe Table'
+];
+
 const REWARDS = [
   { points: 25, name: 'Pick Dessert' },
   { points: 50, name: 'Pick Family Movie' },
@@ -39,6 +46,17 @@ const REWARDS = [
 
 function localDate() {
   return new Date().toLocaleDateString('en-CA');
+}
+
+function currentMonday() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + diff);
+
+  return monday.toLocaleDateString('en-CA');
 }
 
 function App() {
@@ -252,6 +270,8 @@ function ChildDashboard({ user, onLogout }) {
   const [savingLaundry, setSavingLaundry] = useState(null);
   const [laundryError, setLaundryError] = useState('');
 
+  const [weeklyAssignments, setWeeklyAssignments] = useState([]);
+
   useEffect(() => {
     loadBoard();
   }, [user.id]);
@@ -261,12 +281,16 @@ function ChildDashboard({ user, onLogout }) {
     setBoardError('');
 
     const today = localDate();
+    const weekStart = currentMonday();
+
+    await supabase.rpc('ensure_weekly_assignments');
 
     const [
       missionsResult,
       completionsResult,
       pointsResult,
-      laundryResult
+      laundryResult,
+      weeklyResult
     ] = await Promise.all([
       supabase
         .from('daily_missions')
@@ -289,7 +313,14 @@ function ChildDashboard({ user, onLogout }) {
         .from('laundry_completions')
         .select('step_name,approved_at')
         .eq('child_id', user.id)
-        .eq('laundry_date', today)
+        .eq('laundry_date', today),
+
+      supabase
+        .from('weekly_assignments')
+        .select('id,task_name,is_override')
+        .eq('child_id', user.id)
+        .eq('week_start', weekStart)
+        .order('task_name')
     ]);
 
     if (
@@ -332,6 +363,14 @@ function ChildDashboard({ user, onLogout }) {
         (laundryResult.data || []).map(
           item => item.step_name
         )
+      );
+    }
+
+    if (weeklyResult.error) {
+      console.error(weeklyResult.error);
+    } else {
+      setWeeklyAssignments(
+        weeklyResult.data || []
       );
     }
 
@@ -604,24 +643,52 @@ function ChildDashboard({ user, onLogout }) {
             <RotateCcw size={22} />
           </div>
 
-          <div className="weekly-placeholder">
-            <div className="weekly-icon">
-              <Heart size={26} />
+          {weeklyAssignments.length === 0 ? (
+            <div className="weekly-placeholder">
+              <div className="weekly-icon">
+                <Heart size={26} />
+              </div>
+
+              <div>
+                <small>THIS WEEK'S JOB</small>
+                <strong>
+                  No assignment found
+                </strong>
+                <p>
+                  Check back after the weekly rotation
+                  has been assigned.
+                </p>
+              </div>
             </div>
+          ) : (
+            weeklyAssignments.map(assignment => (
+              <div
+                className="weekly-placeholder"
+                key={assignment.id}
+              >
+                <div className="weekly-icon">
+                  <Heart size={26} />
+                </div>
 
-            <div>
-              <small>THIS WEEK'S JOB</small>
+                <div>
+                  <small>
+                    {assignment.is_override
+                      ? 'PARENT ASSIGNMENT'
+                      : "THIS WEEK'S JOB"}
+                  </small>
 
-              <strong>
-                Weekly assignment coming next
-              </strong>
+                  <strong>
+                    {assignment.task_name}
+                  </strong>
 
-              <p>
-                Mom or Dad will assign your rotating
-                family job.
-              </p>
-            </div>
-          </div>
+                  <p>
+                    Help TEAM MILLER by taking care of
+                    your job this week.
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         <aside className="board-side">
@@ -760,44 +827,65 @@ function ChildDashboard({ user, onLogout }) {
 function ParentDashboard({ onLogout }) {
   const [children, setChildren] = useState([]);
   const [laundry, setLaundry] = useState([]);
+  const [weeklyAssignments, setWeeklyAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
+  const [savingAssignment, setSavingAssignment] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadLaundryApprovals();
+    loadParentDashboard();
   }, []);
 
-  async function loadLaundryApprovals() {
+  async function loadParentDashboard() {
     setLoading(true);
     setError('');
 
-    const [profilesResult, laundryResult] =
-      await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id,name')
-          .eq('role', 'child')
-          .eq('is_active', true),
+    await supabase.rpc('ensure_weekly_assignments');
 
-        supabase
-          .from('laundry_completions')
-          .select(
-            'id,child_id,laundry_date,step_name,approved_at'
-          )
-          .order('laundry_date', {
-            ascending: false
-          })
-      ]);
+    const weekStart = currentMonday();
 
-    if (profilesResult.error || laundryResult.error) {
+    const [
+      profilesResult,
+      laundryResult,
+      weeklyResult
+    ] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id,name')
+        .eq('role', 'child')
+        .eq('is_active', true),
+
+      supabase
+        .from('laundry_completions')
+        .select(
+          'id,child_id,laundry_date,step_name,approved_at'
+        )
+        .order('laundry_date', {
+          ascending: false
+        }),
+
+      supabase
+        .from('weekly_assignments')
+        .select(
+          'id,week_start,task_name,child_id,is_override'
+        )
+        .eq('week_start', weekStart)
+    ]);
+
+    if (
+      profilesResult.error ||
+      laundryResult.error ||
+      weeklyResult.error
+    ) {
       console.error(
         profilesResult.error,
-        laundryResult.error
+        laundryResult.error,
+        weeklyResult.error
       );
 
       setError(
-        'Could not load laundry approvals.'
+        'Could not load the Parent Dashboard.'
       );
 
       setLoading(false);
@@ -806,10 +894,23 @@ function ParentDashboard({ onLogout }) {
 
     setChildren(profilesResult.data || []);
     setLaundry(laundryResult.data || []);
+
+    const sortedAssignments =
+      WEEKLY_TASKS.map(task =>
+        (weeklyResult.data || []).find(
+          assignment =>
+            assignment.task_name === task
+        )
+      ).filter(Boolean);
+
+    setWeeklyAssignments(sortedAssignments);
     setLoading(false);
   }
 
-  async function approveLaundry(childId, laundryDate) {
+  async function approveLaundry(
+    childId,
+    laundryDate
+  ) {
     if (approving) return;
 
     setApproving(`${childId}-${laundryDate}`);
@@ -832,8 +933,70 @@ function ParentDashboard({ onLogout }) {
       return;
     }
 
-    await loadLaundryApprovals();
+    await loadParentDashboard();
     setApproving(null);
+  }
+
+  async function changeAssignment(
+    taskName,
+    childId
+  ) {
+    if (savingAssignment) return;
+
+    setSavingAssignment(taskName);
+    setError('');
+
+    const { error: assignmentError } =
+      await supabase.rpc(
+        'override_weekly_assignment',
+        {
+          p_task_name: taskName,
+          p_child_id: childId
+        }
+      );
+
+    if (assignmentError) {
+      console.error(assignmentError);
+
+      setError(
+        'Weekly assignment could not be changed.'
+      );
+
+      setSavingAssignment(null);
+      return;
+    }
+
+    await loadParentDashboard();
+    setSavingAssignment(null);
+  }
+
+  async function restoreAssignment(taskName) {
+    if (savingAssignment) return;
+
+    setSavingAssignment(taskName);
+    setError('');
+
+    const { error: restoreError } =
+      await supabase.rpc(
+        'restore_weekly_assignment',
+        {
+          p_task_name: taskName
+        }
+      );
+
+    if (restoreError) {
+      console.error(restoreError);
+
+      setError(
+        'Automatic assignment could not be restored.'
+      );
+
+      setSavingAssignment(null);
+      return;
+    }
+
+    await loadParentDashboard();
+    setSavingAssignment(null);
   }
 
   const groupedLaundry = laundry.reduce(
@@ -861,21 +1024,22 @@ function ParentDashboard({ onLogout }) {
     {}
   );
 
-  const laundryGroups = Object.values(
-    groupedLaundry
-  );
+  const laundryGroups =
+    Object.values(groupedLaundry);
 
-  const pendingLaundry = laundryGroups.filter(
-    group =>
-      group.steps.length === 4 &&
-      !group.approved
-  );
+  const pendingLaundry =
+    laundryGroups.filter(
+      group =>
+        group.steps.length === 4 &&
+        !group.approved
+    );
 
-  const approvedLaundry = laundryGroups.filter(
-    group =>
-      group.steps.length === 4 &&
-      group.approved
-  );
+  const approvedLaundry =
+    laundryGroups.filter(
+      group =>
+        group.steps.length === 4 &&
+        group.approved
+    );
 
   function childName(childId) {
     return (
@@ -912,8 +1076,8 @@ function ParentDashboard({ onLogout }) {
         </h1>
 
         <p>
-          Review family activity and approve completed
-          missions.
+          Review family activity, manage weekly jobs,
+          and approve completed missions.
         </p>
       </section>
 
@@ -924,7 +1088,107 @@ function ParentDashboard({ onLogout }) {
           padding: '0 24px 80px'
         }}
       >
+        {error && (
+          <div className="tm-login-error">
+            {error}
+          </div>
+        )}
+
         <div className="section-heading">
+          <div>
+            <span>THIS WEEK</span>
+            <h2>Team Assignments</h2>
+          </div>
+
+          <RotateCcw size={24} />
+        </div>
+
+        {loading ? (
+          <p>Loading assignments...</p>
+        ) : (
+          <div className="mission-list">
+            {weeklyAssignments.map(
+              assignment => (
+                <div
+                  className="mission-row"
+                  key={assignment.id}
+                >
+                  <div className="mission-checkbox">
+                    <Heart size={18} />
+                  </div>
+
+                  <span>
+                    <strong>
+                      {assignment.task_name}
+                    </strong>
+                  </span>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}
+                  >
+                    <select
+                      value={assignment.child_id}
+                      disabled={Boolean(
+                        savingAssignment
+                      )}
+                      onChange={e =>
+                        changeAssignment(
+                          assignment.task_name,
+                          e.target.value
+                        )
+                      }
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border:
+                          '1px solid rgba(36,35,66,.15)',
+                        background: 'white',
+                        fontWeight: 700
+                      }}
+                    >
+                      {children.map(child => (
+                        <option
+                          key={child.id}
+                          value={child.id}
+                        >
+                          {child.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {assignment.is_override && (
+                      <button
+                        type="button"
+                        disabled={Boolean(
+                          savingAssignment
+                        )}
+                        onClick={() =>
+                          restoreAssignment(
+                            assignment.task_name
+                          )
+                        }
+                        style={{
+                          border: 0,
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          fontWeight: 700
+                        }}
+                      >
+                        Restore Automatic
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
+        <div className="section-heading lower-heading">
           <div>
             <span>NEEDS YOUR ATTENTION</span>
             <h2>Laundry Approvals</h2>
@@ -933,15 +1197,8 @@ function ParentDashboard({ onLogout }) {
           <Shirt size={24} />
         </div>
 
-        {error && (
-          <div className="tm-login-error">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <p>Loading laundry...</p>
-        ) : pendingLaundry.length === 0 ? (
+        {!loading &&
+        pendingLaundry.length === 0 ? (
           <div className="weekly-placeholder">
             <div className="weekly-icon">
               <Check size={26} />
@@ -1015,9 +1272,7 @@ function ParentDashboard({ onLogout }) {
 
         {approvedLaundry.length > 0 && (
           <>
-            <div
-              className="section-heading lower-heading"
-            >
+            <div className="section-heading lower-heading">
               <div>
                 <span>RECENT</span>
                 <h2>Approved Laundry</h2>
