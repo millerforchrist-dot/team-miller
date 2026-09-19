@@ -69,7 +69,32 @@ function App() {
   const [checkingPin, setCheckingPin] = useState(false);
 
   useEffect(() => {
-    loadProfiles();
+    async function startApp() {
+      await loadProfiles();
+
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id,name,role')
+        .eq('auth_user_id', session.user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !profile) {
+        console.error(error);
+        await supabase.auth.signOut();
+        return;
+      }
+
+      setUser(profile);
+    }
+
+    startApp();
   }, []);
 
   async function loadProfiles() {
@@ -651,9 +676,7 @@ function ChildDashboard({ user, onLogout }) {
 
               <div>
                 <small>THIS WEEK'S JOB</small>
-                <strong>
-                  No assignment found
-                </strong>
+                <strong>No assignment found</strong>
                 <p>
                   Check back after the weekly rotation
                   has been assigned.
