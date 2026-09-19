@@ -1114,3 +1114,54 @@ input {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* =========================================================
+   LAUNDRY CHECKBOX BUTTONS
+   ========================================================= */
+
+.laundry-steps button {
+  border: 0;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #29283f;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.laundry-steps button:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.laundry-steps button > span {
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  border-radius: 50%;
+  background: #242342;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.laundry-steps button.laundry-step-done {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.laundry-steps button.laundry-step-done > span {
+  background: var(--accent-dark);
+}
+
+.laundry-steps button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
