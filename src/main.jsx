@@ -2978,64 +2978,6 @@ function ParentDashboard({ onLogout }) {
           </details>
         )}
 
-        <div className="section-heading lower-heading">
-              <div>
-                <span>RECENT</span>
-                <h2>Reviewed Bonus Missions</h2>
-              </div>
-              <Star size={22} />
-            </div>
-
-            <div className="mission-list">
-              {reviewedBonusMissions.slice(0, 6).map(mission => (
-                <div
-                  className={`mission-row ${
-                    mission.status === 'approved'
-                      ? 'mission-done'
-                      : ''
-                  }`}
-                  key={mission.id}
-                >
-                  <div className="mission-checkbox">
-                    {mission.status === 'approved' ? (
-                      <Check size={18} />
-                    ) : (
-                      <X size={18} />
-                    )}
-                  </div>
-
-                  <span>
-                    {childName(mission.child_id)} — {mission.category}
-                  </span>
-
-                  <strong>
-                    {mission.status === 'approved'
-                      ? '+1'
-                      : 'Rejected'}
-                  </strong>
-
-                  <button
-                    type="button"
-                    onClick={() => undoBonusMissionReview(mission.id)}
-                    title="Undo review"
-                    aria-label={`Undo review for ${childName(mission.child_id)} ${mission.category}`}
-                    style={{
-                      border: '1px solid rgba(36,35,66,.15)',
-                      background: 'white',
-                      color: '#181638',
-                      borderRadius: '8px',
-                      padding: '6px 9px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Undo
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
         {approvedFridayLaundry.length > 0 && (
           <>
             <div className="section-heading lower-heading">
