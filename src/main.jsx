@@ -2047,7 +2047,7 @@ function ParentDashboard({ onLogout }) {
             <span>FAMILY SETTINGS</span>
             <h2>Kids' PINs</h2>
           </div>
-          <Lock size={24} />
+          <LockKeyhole size={24} />
         </div>
 
         <div
@@ -2055,7 +2055,7 @@ function ParentDashboard({ onLogout }) {
           style={{ alignItems: 'flex-start', marginBottom: '28px' }}
         >
           <div className="weekly-icon">
-            <Lock size={25} />
+            <LockKeyhole size={25} />
           </div>
 
           <div style={{ width: '100%' }}>
