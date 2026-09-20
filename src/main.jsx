@@ -312,6 +312,7 @@ function ChildDashboard({ user, onLogout }) {
   const [readingPoints, setReadingPoints] = useState(0);
   const [books, setBooks] = useState([]);
   const [readingOpen, setReadingOpen] = useState(false);
+  const [bookSearch, setBookSearch] = useState('');
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [quizChoices, setQuizChoices] = useState([]);
@@ -1272,6 +1273,7 @@ function ChildDashboard({ user, onLogout }) {
                     setQuizAnswers({});
                     setQuizAttemptId(null);
                     setQuizResult(null);
+                    setBookSearch('');
                     setReadingError('');
                   }}
                 >
@@ -1280,35 +1282,77 @@ function ChildDashboard({ user, onLogout }) {
               </div>
             ) : (
               <div style={{ display: 'grid', gap: '10px' }}>
+                <input
+                  type="search"
+                  value={bookSearch}
+                  onChange={e => setBookSearch(e.target.value)}
+                  placeholder="Search for your book..."
+                  aria-label="Search for your book"
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '12px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(36,35,66,.18)',
+                    background: 'white',
+                    color: '#181638',
+                    fontSize: '16px'
+                  }}
+                />
+
                 {books.length === 0 ? (
                   <p>No books are available yet.</p>
+                ) : bookSearch.trim() === '' ? (
+                  <p style={{ margin: 0, opacity: .72 }}>
+                    Start typing a book title or author.
+                  </p>
                 ) : (
-                  books.map(book => (
-                    <button
-                      key={book.id}
-                      type="button"
-                      disabled={readingBusy}
-                      onClick={() => startBookQuiz(book)}
-                      style={{
-                        textAlign: 'left',
-                        display: 'grid',
-                        gap: '3px'
-                      }}
-                    >
-                      <strong>{book.title}</strong>
-                      <span>{book.author}</span>
-                      <small>
-                        Level {book.reading_level || '—'} •{' '}
-                        {Number(book.maximum_points || 0).toFixed(1)} possible points
-                      </small>
-                    </button>
-                  ))
+                  books
+                    .filter(book => {
+                      const search = bookSearch.trim().toLowerCase();
+                      return (
+                        book.title?.toLowerCase().includes(search) ||
+                        book.author?.toLowerCase().includes(search)
+                      );
+                    })
+                    .map(book => (
+                      <button
+                        key={book.id}
+                        type="button"
+                        disabled={readingBusy}
+                        onClick={() => startBookQuiz(book)}
+                        style={{
+                          textAlign: 'left',
+                          display: 'grid',
+                          gap: '3px'
+                        }}
+                      >
+                        <strong>{book.title}</strong>
+                        <span>{book.author}</span>
+                        <small>
+                          Level {book.reading_level || '—'} •{' '}
+                          {Number(book.maximum_points || 0).toFixed(1)} possible points
+                        </small>
+                      </button>
+                    ))
                 )}
+
+                {bookSearch.trim() !== '' &&
+                  books.filter(book => {
+                    const search = bookSearch.trim().toLowerCase();
+                    return (
+                      book.title?.toLowerCase().includes(search) ||
+                      book.author?.toLowerCase().includes(search)
+                    );
+                  }).length === 0 && (
+                    <p style={{ margin: 0 }}>No matching books found.</p>
+                  )}
 
                 <button
                   type="button"
                   onClick={() => {
                     setReadingOpen(false);
+                    setBookSearch('');
                     setReadingError('');
                   }}
                 >
