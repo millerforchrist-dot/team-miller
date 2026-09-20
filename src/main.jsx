@@ -309,6 +309,18 @@ function ChildDashboard({ user, onLogout }) {
   const [bonusError, setBonusError] = useState('');
   const [bonusSuccess, setBonusSuccess] = useState('');
 
+  const [readingPoints, setReadingPoints] = useState(0);
+  const [books, setBooks] = useState([]);
+  const [readingOpen, setReadingOpen] = useState(false);
+  const [activeQuiz, setActiveQuiz] = useState(null);
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [quizChoices, setQuizChoices] = useState([]);
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizAttemptId, setQuizAttemptId] = useState(null);
+  const [quizResult, setQuizResult] = useState(null);
+  const [readingError, setReadingError] = useState('');
+  const [readingBusy, setReadingBusy] = useState(false);
+
   useEffect(() => {
     loadBoard();
   }, [user.id]);
@@ -329,7 +341,9 @@ function ChildDashboard({ user, onLogout }) {
       laundryResult,
       weeklyResult,
       bonusResult,
-      fridayLaundryResult
+      fridayLaundryResult,
+      booksResult,
+      readingPointsResult
     ] = await Promise.all([
       supabase
         .from('daily_missions')
@@ -371,7 +385,18 @@ function ChildDashboard({ user, onLogout }) {
       supabase
         .from('friday_laundry_completions')
         .select('id,task_name,child_id,laundry_date,approved_at')
-        .eq('laundry_date', today)
+        .eq('laundry_date', today),
+
+      supabase
+        .from('books')
+        .select('id,title,author,reading_level,maximum_points,description')
+        .eq('is_active', true)
+        .order('title'),
+
+      supabase
+        .from('reading_point_transactions')
+        .select('amount')
+        .eq('child_id', user.id)
     ]);
 
     if (
@@ -426,6 +451,25 @@ function ChildDashboard({ user, onLogout }) {
       setFridayLaundryError('Could not load Friday laundry.');
     } else {
       setFridayLaundry(fridayLaundryResult.data || []);
+    }
+
+    if (booksResult.error) {
+      console.error(booksResult.error);
+      setReadingError('Could not load books.');
+    } else {
+      setBooks(booksResult.data || []);
+    }
+
+    if (readingPointsResult.error) {
+      console.error(readingPointsResult.error);
+    } else {
+      setReadingPoints(
+        (readingPointsResult.data || []).reduce(
+          (total, transaction) =>
+            total + Number(transaction.amount || 0),
+          0
+        )
+      );
     }
 
     setBoardLoading(false);
@@ -512,6 +556,135 @@ function ChildDashboard({ user, onLogout }) {
     setSavingFridayLaundry(null);
   }
 
+  async function startBookQuiz(book) {
+    if (readingBusy) return;
+    setReadingBusy(true);
+    setReadingError('');
+    setQuizResult(null);
+
+    const { data: quizzes, error: quizError } = await supabase
+      .from('quizzes')
+      .select('id,book_id')
+      .eq('book_id', book.id)
+      .eq('active', true)
+      .limit(1);
+
+    if (quizError || !quizzes?.length) {
+      console.error(quizError);
+      setReadingError('No quiz is available for this book yet.');
+      setReadingBusy(false);
+      return;
+    }
+
+    const quiz = quizzes[0];
+
+    const { data: attemptId, error: attemptError } = await supabase.rpc(
+      'start_reading_quiz',
+      { p_child_id: user.id, p_quiz_id: quiz.id }
+    );
+
+    if (attemptError) {
+      console.error(attemptError);
+      setReadingError('Could not start the quiz.');
+      setReadingBusy(false);
+      return;
+    }
+
+    const { data: questions, error: questionsError } = await supabase
+      .from('child_quiz_questions')
+      .select('id,quiz_id,question_number,question_text')
+      .eq('quiz_id', quiz.id)
+      .order('question_number');
+
+    if (questionsError || !questions?.length) {
+      console.error(questionsError);
+      setReadingError('Could not load quiz questions.');
+      setReadingBusy(false);
+      return;
+    }
+
+    const questionIds = questions.map(question => question.id);
+
+    const { data: choices, error: choicesError } = await supabase
+      .from('child_quiz_choices')
+      .select('id,question_id,choice_letter,choice_text')
+      .in('question_id', questionIds)
+      .order('choice_letter');
+
+    if (choicesError) {
+      console.error(choicesError);
+      setReadingError('Could not load quiz choices.');
+      setReadingBusy(false);
+      return;
+    }
+
+    setActiveQuiz({ ...quiz, book });
+    setQuizAttemptId(attemptId);
+    setQuizQuestions(questions);
+    setQuizChoices(choices || []);
+    setQuizAnswers({});
+    setReadingOpen(true);
+    setReadingBusy(false);
+  }
+
+  async function submitReadingQuiz() {
+    if (
+      readingBusy ||
+      !quizAttemptId ||
+      quizQuestions.some(question => !quizAnswers[question.id])
+    ) {
+      setReadingError('Answer all 10 questions before submitting.');
+      return;
+    }
+
+    setReadingBusy(true);
+    setReadingError('');
+
+    for (const question of quizQuestions) {
+      const { error } = await supabase.rpc('save_quiz_answer', {
+        p_attempt_id: quizAttemptId,
+        p_question_id: question.id,
+        p_selected_answer: quizAnswers[question.id]
+      });
+
+      if (error) {
+        console.error(error);
+        setReadingError('One of your answers could not be saved.');
+        setReadingBusy(false);
+        return;
+      }
+    }
+
+    const { error: completeError } = await supabase.rpc(
+      'complete_reading_quiz',
+      { p_attempt_id: quizAttemptId }
+    );
+
+    if (completeError) {
+      console.error(completeError);
+      setReadingError('The quiz could not be scored.');
+      setReadingBusy(false);
+      return;
+    }
+
+    const { data: result, error: resultError } = await supabase
+      .from('quiz_attempts')
+      .select('score_percent,reading_points_earned,is_point_earning')
+      .eq('id', quizAttemptId)
+      .single();
+
+    if (resultError) {
+      console.error(resultError);
+      setReadingError('Quiz finished, but the result could not be loaded.');
+      setReadingBusy(false);
+      return;
+    }
+
+    setQuizResult(result);
+    await loadBoard();
+    setReadingBusy(false);
+  }
+
   async function submitBonusMission(e) {
     e.preventDefault();
 
@@ -542,8 +715,6 @@ function ChildDashboard({ user, onLogout }) {
     await loadBoard();
     setSubmittingBonus(false);
   }
-
-  const readingPoints = 0;
 
   const nextReward = REWARDS.find(
     reward => reward.points > missionPoints
@@ -994,10 +1165,160 @@ function ChildDashboard({ user, onLogout }) {
               Points.
             </p>
 
-            <button>
-              Find My Book
-              <ArrowRight size={18} />
-            </button>
+            {!readingOpen ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setReadingOpen(true);
+                  setReadingError('');
+                  setQuizResult(null);
+                }}
+              >
+                Find My Book
+                <ArrowRight size={18} />
+              </button>
+            ) : activeQuiz ? (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                <strong>{activeQuiz.book.title}</strong>
+
+                {quizResult ? (
+                  <div
+                    style={{
+                      padding: '14px',
+                      borderRadius: '12px',
+                      background: 'rgba(255,255,255,.65)'
+                    }}
+                  >
+                    <strong style={{ fontSize: '22px' }}>
+                      {Number(quizResult.score_percent)}%
+                    </strong>
+                    <p style={{ marginBottom: 0 }}>
+                      {quizResult.is_point_earning
+                        ? `You earned ${Number(quizResult.reading_points_earned).toFixed(1)} Reading Points!`
+                        : 'Retake complete — no additional Reading Points.'}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {quizQuestions.map(question => (
+                      <div
+                        key={question.id}
+                        style={{
+                          padding: '12px',
+                          borderRadius: '12px',
+                          background: 'rgba(255,255,255,.55)'
+                        }}
+                      >
+                        <strong>
+                          {question.question_number}. {question.question_text}
+                        </strong>
+
+                        <div
+                          style={{
+                            display: 'grid',
+                            gap: '7px',
+                            marginTop: '10px'
+                          }}
+                        >
+                          {quizChoices
+                            .filter(choice => choice.question_id === question.id)
+                            .map(choice => (
+                              <button
+                                key={choice.id}
+                                type="button"
+                                onClick={() =>
+                                  setQuizAnswers(current => ({
+                                    ...current,
+                                    [question.id]: choice.choice_letter
+                                  }))
+                                }
+                                style={{
+                                  textAlign: 'left',
+                                  padding: '9px',
+                                  borderRadius: '9px',
+                                  border:
+                                    quizAnswers[question.id] === choice.choice_letter
+                                      ? '2px solid currentColor'
+                                      : '1px solid rgba(36,35,66,.15)',
+                                  background: 'white'
+                                }}
+                              >
+                                <strong>{choice.choice_letter}.</strong>{' '}
+                                {choice.choice_text}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      disabled={readingBusy}
+                      onClick={submitReadingQuiz}
+                    >
+                      <Check size={18} />
+                      {readingBusy ? 'Scoring...' : 'Submit Quiz'}
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveQuiz(null);
+                    setQuizQuestions([]);
+                    setQuizChoices([]);
+                    setQuizAnswers({});
+                    setQuizAttemptId(null);
+                    setQuizResult(null);
+                    setReadingError('');
+                  }}
+                >
+                  Back to Books
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {books.length === 0 ? (
+                  <p>No books are available yet.</p>
+                ) : (
+                  books.map(book => (
+                    <button
+                      key={book.id}
+                      type="button"
+                      disabled={readingBusy}
+                      onClick={() => startBookQuiz(book)}
+                      style={{
+                        textAlign: 'left',
+                        display: 'grid',
+                        gap: '3px'
+                      }}
+                    >
+                      <strong>{book.title}</strong>
+                      <span>{book.author}</span>
+                      <small>
+                        Level {book.reading_level || '—'} •{' '}
+                        {Number(book.maximum_points || 0).toFixed(1)} possible points
+                      </small>
+                    </button>
+                  ))
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReadingOpen(false);
+                    setReadingError('');
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {readingError && (
+              <div className="tm-login-error">{readingError}</div>
+            )}
           </div>
 
           <div className="side-card verse-card">
