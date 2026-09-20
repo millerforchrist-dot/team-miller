@@ -275,6 +275,15 @@ function App() {
 
 function ChildDashboard({ user, onLogout }) {
   const config = CHILD_CONFIG[user.name] || CHILD_CONFIG.Kiegan;
+  const todayDay = new Date().getDay();
+  const assignedLaundryDay = {
+    Kiegan: 1,
+    Levi: 2,
+    Will: 3
+  }[user.name];
+  const regularLaundryAvailable =
+    todayDay === assignedLaundryDay || todayDay === 4;
+  const fridayLaundryAvailable = todayDay === 5;
 
   const [missions, setMissions] = useState([]);
   const [completedIds, setCompletedIds] = useState([]);
@@ -735,7 +744,15 @@ function ChildDashboard({ user, onLogout }) {
                     type="button"
                     className={done ? 'laundry-step-done' : ''}
                     onClick={() => toggleLaundry(step)}
-                    disabled={Boolean(savingLaundry)}
+                    disabled={
+                      Boolean(savingLaundry) || !regularLaundryAvailable
+                    }
+                    style={{
+                      opacity: regularLaundryAvailable ? 1 : 0.5,
+                      cursor: regularLaundryAvailable
+                        ? 'pointer'
+                        : 'not-allowed'
+                    }}
                   >
                     <span>
                       {done ? <Check size={14} /> : index + 1}
@@ -752,9 +769,13 @@ function ChildDashboard({ user, onLogout }) {
 
             <div className="laundry-note">
               <Clock size={17} />
-              {laundryCompleted.length === 4
-                ? 'Ready for parent approval!'
-                : `${laundryCompleted.length} of 4 steps complete`}
+              {!regularLaundryAvailable
+                ? `Available ${config.laundryDay} or Thursday Catch-Up Day`
+                : laundryCompleted.length === 4
+                  ? 'Ready for parent approval!'
+                  : todayDay === 4
+                    ? `${laundryCompleted.length} of 4 steps complete • Catch-Up Day`
+                    : `${laundryCompleted.length} of 4 steps complete`}
             </div>
           </div>
 
@@ -794,9 +815,20 @@ function ChildDashboard({ user, onLogout }) {
                     onClick={() => toggleFridayLaundry(task)}
                     disabled={
                       Boolean(savingFridayLaundry) ||
+                      !fridayLaundryAvailable ||
                       claimedByOther ||
                       Boolean(record?.approved_at)
                     }
+                    style={{
+                      opacity:
+                        fridayLaundryAvailable || done ? 1 : 0.5,
+                      cursor:
+                        fridayLaundryAvailable &&
+                        !claimedByOther &&
+                        !record?.approved_at
+                          ? 'pointer'
+                          : 'not-allowed'
+                    }}
                   >
                     <span>{done ? <Check size={14} /> : index + 1}</span>
                     {saving
@@ -819,7 +851,9 @@ function ChildDashboard({ user, onLogout }) {
 
             <div className="laundry-note">
               <Clock size={17} />
-              Friday only • Parent approval required
+              {fridayLaundryAvailable
+                ? 'Friday is active • Parent approval required'
+                : 'Available Friday • Parent approval required'}
             </div>
           </div>
 
