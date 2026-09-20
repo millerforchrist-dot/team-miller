@@ -669,7 +669,7 @@ function ChildDashboard({ user, onLogout }) {
 
     const { data: result, error: resultError } = await supabase
       .from('quiz_attempts')
-      .select('score_percent,reading_points_earned,is_point_earning')
+      .select('score_percent,reading_points_earned,is_first_attempt')
       .eq('id', quizAttemptId)
       .single();
 
@@ -1193,7 +1193,7 @@ function ChildDashboard({ user, onLogout }) {
                       {Number(quizResult.score_percent)}%
                     </strong>
                     <p style={{ marginBottom: 0 }}>
-                      {quizResult.is_point_earning
+                      {quizResult.is_first_attempt
                         ? `You earned ${Number(quizResult.reading_points_earned).toFixed(1)} Reading Points!`
                         : 'Retake complete — no additional Reading Points.'}
                     </p>
