@@ -1240,7 +1240,8 @@ function ChildDashboard({ user, onLogout }) {
                                     quizAnswers[question.id] === choice.choice_letter
                                       ? '2px solid currentColor'
                                       : '1px solid rgba(36,35,66,.15)',
-                                  background: 'white'
+                                  background: 'white',
+                                  color: '#181638'
                                 }}
                               >
                                 <strong>{choice.choice_letter}.</strong>{' '}
