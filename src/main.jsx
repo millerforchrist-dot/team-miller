@@ -183,31 +183,18 @@ function App() {
   }
 
   if (user?.role === 'child') {
-    return (
-      <ChildDashboard
-        user={user}
-        onLogout={logout}
-      />
-    );
+    return <ChildDashboard user={user} onLogout={logout} />;
   }
 
   if (user?.role === 'parent') {
-    return (
-      <ParentDashboard
-        onLogout={logout}
-      />
-    );
+    return <ParentDashboard onLogout={logout} />;
   }
 
   const children = ['Kiegan', 'Levi', 'Will']
-    .map(name =>
-      profiles.find(profile => profile.name === name)
-    )
+    .map(name => profiles.find(profile => profile.name === name))
     .filter(Boolean);
 
-  const parent = profiles.find(
-    profile => profile.role === 'parent'
-  );
+  const parent = profiles.find(profile => profile.role === 'parent');
 
   return (
     <main className="tm-home">
@@ -239,8 +226,8 @@ function App() {
         </h1>
 
         <p className="tm-hero-copy">
-          Choose your name and enter your private PIN to
-          open your mission board.
+          Choose your name and enter your private PIN to open your mission
+          board.
         </p>
       </section>
 
@@ -264,10 +251,7 @@ function App() {
                   <strong>{profile.name}</strong>
                 </div>
 
-                <ArrowRight
-                  className="tm-profile-arrow"
-                  size={28}
-                />
+                <ArrowRight className="tm-profile-arrow" size={28} />
               </button>
             ))}
           </div>
@@ -290,8 +274,7 @@ function App() {
 }
 
 function ChildDashboard({ user, onLogout }) {
-  const config =
-    CHILD_CONFIG[user.name] || CHILD_CONFIG.Kiegan;
+  const config = CHILD_CONFIG[user.name] || CHILD_CONFIG.Kiegan;
 
   const [missions, setMissions] = useState([]);
   const [completedIds, setCompletedIds] = useState([]);
@@ -308,9 +291,7 @@ function ChildDashboard({ user, onLogout }) {
 
   const [bonusMissions, setBonusMissions] = useState([]);
   const [showBonusForm, setShowBonusForm] = useState(false);
-  const [bonusCategory, setBonusCategory] = useState(
-    BONUS_CATEGORIES[0]
-  );
+  const [bonusCategory, setBonusCategory] = useState(BONUS_CATEGORIES[0]);
   const [bonusNote, setBonusNote] = useState('');
   const [submittingBonus, setSubmittingBonus] = useState(false);
   const [bonusError, setBonusError] = useState('');
@@ -369,13 +350,9 @@ function ChildDashboard({ user, onLogout }) {
 
       supabase
         .from('bonus_mission_submissions')
-        .select(
-          'id,category,note,status,submitted_at'
-        )
+        .select('id,category,note,status,submitted_at')
         .eq('child_id', user.id)
-        .order('submitted_at', {
-          ascending: false
-        })
+        .order('submitted_at', { ascending: false })
         .limit(5)
     ]);
 
@@ -389,19 +366,12 @@ function ChildDashboard({ user, onLogout }) {
         completionsResult.error,
         pointsResult.error
       );
-
-      setBoardError(
-        'Could not load your mission board.'
-      );
+      setBoardError('Could not load your mission board.');
     } else {
       setMissions(missionsResult.data || []);
-
       setCompletedIds(
-        (completionsResult.data || []).map(
-          item => item.mission_id
-        )
+        (completionsResult.data || []).map(item => item.mission_id)
       );
-
       setMissionPoints(
         (pointsResult.data || []).reduce(
           (total, transaction) =>
@@ -416,25 +386,19 @@ function ChildDashboard({ user, onLogout }) {
       setLaundryError('Could not load laundry.');
     } else {
       setLaundryCompleted(
-        (laundryResult.data || []).map(
-          item => item.step_name
-        )
+        (laundryResult.data || []).map(item => item.step_name)
       );
     }
 
     if (weeklyResult.error) {
       console.error(weeklyResult.error);
     } else {
-      setWeeklyAssignments(
-        weeklyResult.data || []
-      );
+      setWeeklyAssignments(weeklyResult.data || []);
     }
 
     if (bonusResult.error) {
       console.error(bonusResult.error);
-      setBonusError(
-        'Could not load Bonus Missions.'
-      );
+      setBonusError('Could not load Bonus Missions.');
     } else {
       setBonusMissions(bonusResult.data || []);
     }
@@ -445,8 +409,7 @@ function ChildDashboard({ user, onLogout }) {
   async function toggleMission(mission) {
     if (savingMission) return;
 
-    const isCompleted =
-      completedIds.includes(mission.id);
+    const isCompleted = completedIds.includes(mission.id);
 
     setSavingMission(mission.id);
     setBoardError('');
@@ -455,21 +418,14 @@ function ChildDashboard({ user, onLogout }) {
       ? 'uncomplete_daily_mission'
       : 'complete_daily_mission';
 
-    const { error } = await supabase.rpc(
-      functionName,
-      {
-        p_child_id: user.id,
-        p_mission_id: mission.id
-      }
-    );
+    const { error } = await supabase.rpc(functionName, {
+      p_child_id: user.id,
+      p_mission_id: mission.id
+    });
 
     if (error) {
       console.error(error);
-
-      setBoardError(
-        'That mission could not be updated. Try again.'
-      );
-
+      setBoardError('That mission could not be updated. Try again.');
       setSavingMission(null);
       return;
     }
@@ -484,29 +440,18 @@ function ChildDashboard({ user, onLogout }) {
     setSavingLaundry(step);
     setLaundryError('');
 
-    const { error } = await supabase.rpc(
-      'toggle_laundry_step',
-      {
-        p_child_id: user.id,
-        p_step_name: step
-      }
-    );
+    const { error } = await supabase.rpc('toggle_laundry_step', {
+      p_child_id: user.id,
+      p_step_name: step
+    });
 
     if (error) {
       console.error(error);
 
-      if (
-        error.message?.includes(
-          'not your laundry day'
-        )
-      ) {
-        setLaundryError(
-          `Laundry can be checked on ${config.laundryDay}.`
-        );
+      if (error.message?.includes('not your laundry day')) {
+        setLaundryError(`Laundry can be checked on ${config.laundryDay}.`);
       } else {
-        setLaundryError(
-          'That laundry step could not be updated.'
-        );
+        setLaundryError('That laundry step could not be updated.');
       }
 
       setSavingLaundry(null);
@@ -526,20 +471,15 @@ function ChildDashboard({ user, onLogout }) {
     setBonusError('');
     setBonusSuccess('');
 
-    const { error } = await supabase.rpc(
-      'submit_bonus_mission',
-      {
-        p_child_id: user.id,
-        p_category: bonusCategory,
-        p_note: bonusNote.trim() || null
-      }
-    );
+    const { error } = await supabase.rpc('submit_bonus_mission', {
+      p_child_id: user.id,
+      p_category: bonusCategory,
+      p_note: bonusNote.trim() || null
+    });
 
     if (error) {
       console.error(error);
-      setBonusError(
-        'Bonus Mission could not be submitted.'
-      );
+      setBonusError('Bonus Mission could not be submitted.');
       setSubmittingBonus(false);
       return;
     }
@@ -547,9 +487,7 @@ function ChildDashboard({ user, onLogout }) {
     setBonusNote('');
     setBonusCategory(BONUS_CATEGORIES[0]);
     setShowBonusForm(false);
-    setBonusSuccess(
-      'Bonus Mission sent to Mom or Dad!'
-    );
+    setBonusSuccess('Bonus Mission sent to Mom or Dad!');
 
     await loadBoard();
     setSubmittingBonus(false);
@@ -562,32 +500,21 @@ function ChildDashboard({ user, onLogout }) {
   );
 
   const progress = nextReward
-    ? Math.min(
-        (missionPoints / nextReward.points) * 100,
-        100
-      )
+    ? Math.min((missionPoints / nextReward.points) * 100, 100)
     : 100;
 
   return (
-    <main
-      className={`child-board child-${config.className}`}
-    >
+    <main className={`child-board child-${config.className}`}>
       <header className="child-header">
         <Brand />
 
         <div className="child-header-actions">
-          <button
-            className="child-home-button"
-            onClick={onLogout}
-          >
+          <button className="child-home-button" onClick={onLogout}>
             <Home size={18} />
             Home
           </button>
 
-          <button
-            className="child-logout-button"
-            onClick={onLogout}
-          >
+          <button className="child-logout-button" onClick={onLogout}>
             <LogOut size={18} />
             Log out
           </button>
@@ -607,15 +534,10 @@ function ChildDashboard({ user, onLogout }) {
             <em>today count?</em>
           </h1>
 
-          <p>
-            Small things done faithfully make a big
-            difference.
-          </p>
+          <p>Small things done faithfully make a big difference.</p>
         </div>
 
-        <div className="child-avatar">
-          {config.initial}
-        </div>
+        <div className="child-avatar">{config.initial}</div>
       </section>
 
       <section className="points-grid">
@@ -623,7 +545,6 @@ function ChildDashboard({ user, onLogout }) {
           <div className="point-icon">
             <Star size={25} />
           </div>
-
           <span>MISSION POINTS</span>
           <strong>{missionPoints}</strong>
           <small>Keep serving. Keep growing.</small>
@@ -633,43 +554,28 @@ function ChildDashboard({ user, onLogout }) {
           <div className="point-icon">
             <BookOpen size={25} />
           </div>
-
           <span>READING POINTS</span>
           <strong>{readingPoints}</strong>
-          <small>
-            Every book is an adventure.
-          </small>
+          <small>Every book is an adventure.</small>
         </div>
 
         <div className="point-card reward-point">
           <div className="point-icon">
             <Gift size={25} />
           </div>
-
           <span>NEXT REWARD</span>
-
           <strong className="reward-name">
-            {nextReward?.name ||
-              'All rewards unlocked!'}
+            {nextReward?.name || 'All rewards unlocked!'}
           </strong>
 
           {nextReward && (
             <>
-              <small>
-                {nextReward.points} Mission Points
-              </small>
-
+              <small>{nextReward.points} Mission Points</small>
               <div className="reward-progress">
-                <div
-                  style={{
-                    width: `${progress}%`
-                  }}
-                />
+                <div style={{ width: `${progress}%` }} />
               </div>
-
               <small>
-                {nextReward.points - missionPoints}{' '}
-                points to go
+                {nextReward.points - missionPoints} points to go
               </small>
             </>
           )}
@@ -683,17 +589,13 @@ function ChildDashboard({ user, onLogout }) {
               <span>TODAY</span>
               <h2>Daily Missions</h2>
             </div>
-
             <div className="mission-count">
-              {completedIds.length} /{' '}
-              {missions.length || 6}
+              {completedIds.length} / {missions.length || 6}
             </div>
           </div>
 
           {boardError && (
-            <div className="tm-login-error">
-              {boardError}
-            </div>
+            <div className="tm-login-error">{boardError}</div>
           )}
 
           {boardLoading ? (
@@ -701,11 +603,8 @@ function ChildDashboard({ user, onLogout }) {
           ) : (
             <div className="mission-list">
               {missions.map(mission => {
-                const done =
-                  completedIds.includes(mission.id);
-
-                const saving =
-                  savingMission === mission.id;
+                const done = completedIds.includes(mission.id);
+                const saving = savingMission === mission.id;
 
                 return (
                   <button
@@ -713,24 +612,15 @@ function ChildDashboard({ user, onLogout }) {
                     className={`mission-row ${
                       done ? 'mission-done' : ''
                     }`}
-                    onClick={() =>
-                      toggleMission(mission)
-                    }
+                    onClick={() => toggleMission(mission)}
                     disabled={Boolean(savingMission)}
                   >
                     <div className="mission-checkbox">
                       {done && <Check size={20} />}
                     </div>
 
-                    <span>
-                      {saving
-                        ? 'Saving...'
-                        : mission.name}
-                    </span>
-
-                    <strong>
-                      +{Number(mission.point_value)}
-                    </strong>
+                    <span>{saving ? 'Saving...' : mission.name}</span>
+                    <strong>+{Number(mission.point_value)}</strong>
                   </button>
                 );
               })}
@@ -742,7 +632,6 @@ function ChildDashboard({ user, onLogout }) {
               <span>YOUR WEEK</span>
               <h2>Team Assignment</h2>
             </div>
-
             <RotateCcw size={22} />
           </div>
 
@@ -751,40 +640,27 @@ function ChildDashboard({ user, onLogout }) {
               <div className="weekly-icon">
                 <Heart size={26} />
               </div>
-
               <div>
                 <small>THIS WEEK'S JOB</small>
                 <strong>No assignment found</strong>
-                <p>
-                  Check back after the weekly rotation
-                  has been assigned.
-                </p>
+                <p>Check back after the weekly rotation has been assigned.</p>
               </div>
             </div>
           ) : (
             weeklyAssignments.map(assignment => (
-              <div
-                className="weekly-placeholder"
-                key={assignment.id}
-              >
+              <div className="weekly-placeholder" key={assignment.id}>
                 <div className="weekly-icon">
                   <Heart size={26} />
                 </div>
-
                 <div>
                   <small>
                     {assignment.is_override
                       ? 'PARENT ASSIGNMENT'
                       : "THIS WEEK'S JOB"}
                   </small>
-
-                  <strong>
-                    {assignment.task_name}
-                  </strong>
-
+                  <strong>{assignment.task_name}</strong>
                   <p>
-                    Help TEAM MILLER by taking care of
-                    your job this week.
+                    Help TEAM MILLER by taking care of your job this week.
                   </p>
                 </div>
               </div>
@@ -796,7 +672,6 @@ function ChildDashboard({ user, onLogout }) {
           <div className="side-card laundry-card">
             <div className="side-card-title">
               <Shirt size={23} />
-
               <div>
                 <small>LAUNDRY DAY</small>
                 <h3>{config.laundryDay}</h3>
@@ -804,62 +679,38 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Complete all four steps. Mom or Dad will
-              approve them before Mission Points are
-              awarded.
+              Complete all four steps. Mom or Dad will approve them before
+              Mission Points are awarded.
             </p>
 
             <div className="laundry-steps">
-              {LAUNDRY_STEPS.map(
-                (step, index) => {
-                  const done =
-                    laundryCompleted.includes(step);
+              {LAUNDRY_STEPS.map((step, index) => {
+                const done = laundryCompleted.includes(step);
+                const saving = savingLaundry === step;
 
-                  const saving =
-                    savingLaundry === step;
-
-                  return (
-                    <button
-                      key={step}
-                      type="button"
-                      className={
-                        done
-                          ? 'laundry-step-done'
-                          : ''
-                      }
-                      onClick={() =>
-                        toggleLaundry(step)
-                      }
-                      disabled={Boolean(
-                        savingLaundry
-                      )}
-                    >
-                      <span>
-                        {done ? (
-                          <Check size={14} />
-                        ) : (
-                          index + 1
-                        )}
-                      </span>
-
-                      {saving
-                        ? 'Saving...'
-                        : step}
-                    </button>
-                  );
-                }
-              )}
+                return (
+                  <button
+                    key={step}
+                    type="button"
+                    className={done ? 'laundry-step-done' : ''}
+                    onClick={() => toggleLaundry(step)}
+                    disabled={Boolean(savingLaundry)}
+                  >
+                    <span>
+                      {done ? <Check size={14} /> : index + 1}
+                    </span>
+                    {saving ? 'Saving...' : step}
+                  </button>
+                );
+              })}
             </div>
 
             {laundryError && (
-              <div className="tm-login-error">
-                {laundryError}
-              </div>
+              <div className="tm-login-error">{laundryError}</div>
             )}
 
             <div className="laundry-note">
               <Clock size={17} />
-
               {laundryCompleted.length === 4
                 ? 'Ready for parent approval!'
                 : `${laundryCompleted.length} of 4 steps complete`}
@@ -869,7 +720,6 @@ function ChildDashboard({ user, onLogout }) {
           <div className="side-card bonus-card">
             <div className="side-card-title">
               <Star size={23} />
-
               <div>
                 <small>GO ABOVE & BEYOND</small>
                 <h3>Bonus Missions</h3>
@@ -877,9 +727,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Bible reading, prayer, kindness,
-              Scripture memory and helping without
-              being asked.
+              Bible reading, prayer, kindness, Scripture memory and helping
+              without being asked.
             </p>
 
             {!showBonusForm ? (
@@ -897,29 +746,20 @@ function ChildDashboard({ user, onLogout }) {
             ) : (
               <form
                 onSubmit={submitBonusMission}
-                style={{
-                  display: 'grid',
-                  gap: '10px'
-                }}
+                style={{ display: 'grid', gap: '10px' }}
               >
                 <select
                   value={bonusCategory}
-                  onChange={e =>
-                    setBonusCategory(e.target.value)
-                  }
+                  onChange={e => setBonusCategory(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '11px',
                     borderRadius: '10px',
-                    border:
-                      '1px solid rgba(36,35,66,.15)'
+                    border: '1px solid rgba(36,35,66,.15)'
                   }}
                 >
                   {BONUS_CATEGORIES.map(category => (
-                    <option
-                      key={category}
-                      value={category}
-                    >
+                    <option key={category} value={category}>
                       {category}
                     </option>
                   ))}
@@ -927,9 +767,7 @@ function ChildDashboard({ user, onLogout }) {
 
                 <textarea
                   value={bonusNote}
-                  onChange={e =>
-                    setBonusNote(e.target.value)
-                  }
+                  onChange={e => setBonusNote(e.target.value)}
                   placeholder="Tell Mom or Dad what you did..."
                   rows="3"
                   maxLength="500"
@@ -938,21 +776,15 @@ function ChildDashboard({ user, onLogout }) {
                     boxSizing: 'border-box',
                     padding: '11px',
                     borderRadius: '10px',
-                    border:
-                      '1px solid rgba(36,35,66,.15)',
+                    border: '1px solid rgba(36,35,66,.15)',
                     resize: 'vertical',
                     fontFamily: 'inherit'
                   }}
                 />
 
-                <button
-                  type="submit"
-                  disabled={submittingBonus}
-                >
+                <button type="submit" disabled={submittingBonus}>
                   <Check size={18} />
-                  {submittingBonus
-                    ? 'Sending...'
-                    : 'Send for Approval'}
+                  {submittingBonus ? 'Sending...' : 'Send for Approval'}
                 </button>
 
                 <button
@@ -968,9 +800,7 @@ function ChildDashboard({ user, onLogout }) {
             )}
 
             {bonusError && (
-              <div className="tm-login-error">
-                {bonusError}
-              </div>
+              <div className="tm-login-error">{bonusError}</div>
             )}
 
             {bonusSuccess && (
@@ -993,20 +823,11 @@ function ChildDashboard({ user, onLogout }) {
                     style={{
                       padding: '10px',
                       borderRadius: '10px',
-                      background:
-                        'rgba(255,255,255,.55)'
+                      background: 'rgba(255,255,255,.55)'
                     }}
                   >
-                    <strong>
-                      {item.category}
-                    </strong>
-
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        marginTop: '3px'
-                      }}
-                    >
+                    <strong>{item.category}</strong>
+                    <div style={{ fontSize: '12px', marginTop: '3px' }}>
                       {item.status === 'pending'
                         ? 'Waiting for approval'
                         : item.status === 'approved'
@@ -1022,7 +843,6 @@ function ChildDashboard({ user, onLogout }) {
           <div className="side-card reading-card">
             <div className="side-card-title">
               <BookOpen size={23} />
-
               <div>
                 <small>READ • QUIZ • GROW</small>
                 <h3>Reading Challenge</h3>
@@ -1030,8 +850,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
 
             <p>
-              Find your book, take your 10-question
-              quiz, and earn Reading Points.
+              Find your book, take your 10-question quiz, and earn Reading
+              Points.
             </p>
 
             <button>
@@ -1042,12 +862,10 @@ function ChildDashboard({ user, onLogout }) {
 
           <div className="side-card verse-card">
             <Trophy size={22} />
-
             <p>
-              “Whatever you do, work at it with all
-              your heart, as working for the Lord.”
+              “Whatever you do, work at it with all your heart, as working
+              for the Lord.”
             </p>
-
             <strong>COLOSSIANS 3:23</strong>
           </div>
         </aside>
@@ -1061,10 +879,14 @@ function ParentDashboard({ onLogout }) {
   const [laundry, setLaundry] = useState([]);
   const [weeklyAssignments, setWeeklyAssignments] = useState([]);
   const [bonusMissions, setBonusMissions] = useState([]);
+  const [childPoints, setChildPoints] = useState({});
+  const [rewardRedemptions, setRewardRedemptions] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [savingAssignment, setSavingAssignment] = useState(null);
   const [reviewingBonus, setReviewingBonus] = useState(null);
+  const [redeemingReward, setRedeemingReward] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -1083,7 +905,9 @@ function ParentDashboard({ onLogout }) {
       profilesResult,
       laundryResult,
       weeklyResult,
-      bonusResult
+      bonusResult,
+      pointsResult,
+      rewardsResult
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -1093,47 +917,49 @@ function ParentDashboard({ onLogout }) {
 
       supabase
         .from('laundry_completions')
-        .select(
-          'id,child_id,laundry_date,step_name,approved_at'
-        )
-        .order('laundry_date', {
-          ascending: false
-        }),
+        .select('id,child_id,laundry_date,step_name,approved_at')
+        .order('laundry_date', { ascending: false }),
 
       supabase
         .from('weekly_assignments')
-        .select(
-          'id,week_start,task_name,child_id,is_override'
-        )
+        .select('id,week_start,task_name,child_id,is_override')
         .eq('week_start', weekStart),
 
       supabase
         .from('bonus_mission_submissions')
+        .select('id,child_id,category,note,status,submitted_at')
+        .order('submitted_at', { ascending: false }),
+
+      supabase
+        .from('mission_point_transactions')
+        .select('child_id,amount'),
+
+      supabase
+        .from('reward_redemptions')
         .select(
-          'id,child_id,category,note,status,submitted_at'
+          'id,child_id,reward_name,point_threshold,parent_note,redeemed_at'
         )
-        .order('submitted_at', {
-          ascending: false
-        })
+        .order('redeemed_at', { ascending: false })
     ]);
 
     if (
       profilesResult.error ||
       laundryResult.error ||
       weeklyResult.error ||
-      bonusResult.error
+      bonusResult.error ||
+      pointsResult.error ||
+      rewardsResult.error
     ) {
       console.error(
         profilesResult.error,
         laundryResult.error,
         weeklyResult.error,
-        bonusResult.error
+        bonusResult.error,
+        pointsResult.error,
+        rewardsResult.error
       );
 
-      setError(
-        'Could not load the Parent Dashboard.'
-      );
-
+      setError('Could not load the Parent Dashboard.');
       setLoading(false);
       return;
     }
@@ -1141,41 +967,49 @@ function ParentDashboard({ onLogout }) {
     setChildren(profilesResult.data || []);
     setLaundry(laundryResult.data || []);
     setBonusMissions(bonusResult.data || []);
+    setRewardRedemptions(rewardsResult.data || []);
 
-    const sortedAssignments =
-      WEEKLY_TASKS.map(task =>
-        (weeklyResult.data || []).find(
-          assignment =>
-            assignment.task_name === task
-        )
-      ).filter(Boolean);
+    const totals = {};
+
+    (profilesResult.data || []).forEach(child => {
+      totals[child.id] = 0;
+    });
+
+    (pointsResult.data || []).forEach(transaction => {
+      totals[transaction.child_id] =
+        (totals[transaction.child_id] || 0) +
+        Number(transaction.amount || 0);
+    });
+
+    setChildPoints(totals);
+
+    const sortedAssignments = WEEKLY_TASKS.map(task =>
+      (weeklyResult.data || []).find(
+        assignment => assignment.task_name === task
+      )
+    ).filter(Boolean);
 
     setWeeklyAssignments(sortedAssignments);
     setLoading(false);
   }
 
-  async function approveLaundry(
-    childId,
-    laundryDate
-  ) {
+  async function approveLaundry(childId, laundryDate) {
     if (approving) return;
 
     setApproving(`${childId}-${laundryDate}`);
     setError('');
 
-    const { error: approvalError } =
-      await supabase.rpc('approve_laundry', {
+    const { error: approvalError } = await supabase.rpc(
+      'approve_laundry',
+      {
         p_child_id: childId,
         p_laundry_date: laundryDate
-      });
+      }
+    );
 
     if (approvalError) {
       console.error(approvalError);
-
-      setError(
-        'Laundry could not be approved. Try again.'
-      );
-
+      setError('Laundry could not be approved. Try again.');
       setApproving(null);
       return;
     }
@@ -1184,31 +1018,23 @@ function ParentDashboard({ onLogout }) {
     setApproving(null);
   }
 
-  async function changeAssignment(
-    taskName,
-    childId
-  ) {
+  async function changeAssignment(taskName, childId) {
     if (savingAssignment) return;
 
     setSavingAssignment(taskName);
     setError('');
 
-    const { error: assignmentError } =
-      await supabase.rpc(
-        'override_weekly_assignment',
-        {
-          p_task_name: taskName,
-          p_child_id: childId
-        }
-      );
+    const { error: assignmentError } = await supabase.rpc(
+      'override_weekly_assignment',
+      {
+        p_task_name: taskName,
+        p_child_id: childId
+      }
+    );
 
     if (assignmentError) {
       console.error(assignmentError);
-
-      setError(
-        'Weekly assignment could not be changed.'
-      );
-
+      setError('Weekly assignment could not be changed.');
       setSavingAssignment(null);
       return;
     }
@@ -1223,21 +1049,16 @@ function ParentDashboard({ onLogout }) {
     setSavingAssignment(taskName);
     setError('');
 
-    const { error: restoreError } =
-      await supabase.rpc(
-        'restore_weekly_assignment',
-        {
-          p_task_name: taskName
-        }
-      );
+    const { error: restoreError } = await supabase.rpc(
+      'restore_weekly_assignment',
+      {
+        p_task_name: taskName
+      }
+    );
 
     if (restoreError) {
       console.error(restoreError);
-
-      setError(
-        'Automatic assignment could not be restored.'
-      );
-
+      setError('Automatic assignment could not be restored.');
       setSavingAssignment(null);
       return;
     }
@@ -1246,32 +1067,24 @@ function ParentDashboard({ onLogout }) {
     setSavingAssignment(null);
   }
 
-  async function reviewBonusMission(
-    submissionId,
-    decision
-  ) {
+  async function reviewBonusMission(submissionId, decision) {
     if (reviewingBonus) return;
 
     setReviewingBonus(submissionId);
     setError('');
 
-    const { error: reviewError } =
-      await supabase.rpc(
-        'review_bonus_mission',
-        {
-          p_submission_id: submissionId,
-          p_decision: decision,
-          p_parent_note: null
-        }
-      );
+    const { error: reviewError } = await supabase.rpc(
+      'review_bonus_mission',
+      {
+        p_submission_id: submissionId,
+        p_decision: decision,
+        p_parent_note: null
+      }
+    );
 
     if (reviewError) {
       console.error(reviewError);
-
-      setError(
-        'Bonus Mission could not be reviewed.'
-      );
-
+      setError('Bonus Mission could not be reviewed.');
       setReviewingBonus(null);
       return;
     }
@@ -1280,63 +1093,90 @@ function ParentDashboard({ onLogout }) {
     setReviewingBonus(null);
   }
 
-  const groupedLaundry = laundry.reduce(
-    (groups, item) => {
-      const key =
-        `${item.child_id}-${item.laundry_date}`;
+  async function redeemReward(child, reward) {
+    if (redeemingReward) return;
 
-      if (!groups[key]) {
-        groups[key] = {
-          childId: item.child_id,
-          date: item.laundry_date,
-          steps: [],
-          approved: true
-        };
+    const points = Number(childPoints[child.id] || 0);
+
+    if (points < reward.points) {
+      setError(
+        `${child.name} needs ${reward.points - points} more Mission Points for ${reward.name}.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Record "${reward.name}" for ${child.name}?\n\nThis will NOT subtract Mission Points.`
+    );
+
+    if (!confirmed) return;
+
+    setRedeemingReward(`${child.id}-${reward.points}`);
+    setError('');
+
+    const { error: rewardError } = await supabase.rpc(
+      'redeem_reward',
+      {
+        p_child_id: child.id,
+        p_reward_name: reward.name,
+        p_point_threshold: reward.points,
+        p_parent_note: null
       }
+    );
 
-      groups[key].steps.push(item.step_name);
+    if (rewardError) {
+      console.error(rewardError);
+      setError('Reward could not be recorded.');
+      setRedeemingReward(null);
+      return;
+    }
 
-      if (!item.approved_at) {
-        groups[key].approved = false;
-      }
+    await loadParentDashboard();
+    setRedeemingReward(null);
+  }
 
-      return groups;
-    },
-    {}
+  const groupedLaundry = laundry.reduce((groups, item) => {
+    const key = `${item.child_id}-${item.laundry_date}`;
+
+    if (!groups[key]) {
+      groups[key] = {
+        childId: item.child_id,
+        date: item.laundry_date,
+        steps: [],
+        approved: true
+      };
+    }
+
+    groups[key].steps.push(item.step_name);
+
+    if (!item.approved_at) {
+      groups[key].approved = false;
+    }
+
+    return groups;
+  }, {});
+
+  const laundryGroups = Object.values(groupedLaundry);
+
+  const pendingLaundry = laundryGroups.filter(
+    group => group.steps.length === 4 && !group.approved
   );
 
-  const laundryGroups =
-    Object.values(groupedLaundry);
+  const approvedLaundry = laundryGroups.filter(
+    group => group.steps.length === 4 && group.approved
+  );
 
-  const pendingLaundry =
-    laundryGroups.filter(
-      group =>
-        group.steps.length === 4 &&
-        !group.approved
-    );
+  const pendingBonusMissions = bonusMissions.filter(
+    mission => mission.status === 'pending'
+  );
 
-  const approvedLaundry =
-    laundryGroups.filter(
-      group =>
-        group.steps.length === 4 &&
-        group.approved
-    );
-
-  const pendingBonusMissions =
-    bonusMissions.filter(
-      mission => mission.status === 'pending'
-    );
-
-  const reviewedBonusMissions =
-    bonusMissions.filter(
-      mission => mission.status !== 'pending'
-    );
+  const reviewedBonusMissions = bonusMissions.filter(
+    mission => mission.status !== 'pending'
+  );
 
   function childName(childId) {
     return (
-      children.find(
-        child => child.id === childId
-      )?.name || 'Child'
+      children.find(child => child.id === childId)?.name || 'Child'
     );
   }
 
@@ -1345,10 +1185,7 @@ function ParentDashboard({ onLogout }) {
       <header className="tm-dashboard-header">
         <Brand />
 
-        <button
-          className="tm-text-button"
-          onClick={onLogout}
-        >
+        <button className="tm-text-button" onClick={onLogout}>
           <LogOut size={18} />
           Log out
         </button>
@@ -1367,8 +1204,8 @@ function ParentDashboard({ onLogout }) {
         </h1>
 
         <p>
-          Review family activity, manage weekly jobs,
-          and approve completed missions.
+          Review family activity, manage weekly jobs, and approve completed
+          missions.
         </p>
       </section>
 
@@ -1379,18 +1216,13 @@ function ParentDashboard({ onLogout }) {
           padding: '0 24px 80px'
         }}
       >
-        {error && (
-          <div className="tm-login-error">
-            {error}
-          </div>
-        )}
+        {error && <div className="tm-login-error">{error}</div>}
 
         <div className="section-heading">
           <div>
             <span>THIS WEEK</span>
             <h2>Team Assignments</h2>
           </div>
-
           <RotateCcw size={24} />
         </div>
 
@@ -1398,84 +1230,166 @@ function ParentDashboard({ onLogout }) {
           <p>Loading assignments...</p>
         ) : (
           <div className="mission-list">
-            {weeklyAssignments.map(
-              assignment => (
+            {weeklyAssignments.map(assignment => (
+              <div className="mission-row" key={assignment.id}>
+                <div className="mission-checkbox">
+                  <Heart size={18} />
+                </div>
+
+                <span>
+                  <strong>{assignment.task_name}</strong>
+                </span>
+
                 <div
-                  className="mission-row"
-                  key={assignment.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}
                 >
-                  <div className="mission-checkbox">
-                    <Heart size={18} />
-                  </div>
-
-                  <span>
-                    <strong>
-                      {assignment.task_name}
-                    </strong>
-                  </span>
-
-                  <div
+                  <select
+                    value={assignment.child_id}
+                    disabled={Boolean(savingAssignment)}
+                    onChange={e =>
+                      changeAssignment(
+                        assignment.task_name,
+                        e.target.value
+                      )
+                    }
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(36,35,66,.15)',
+                      background: 'white',
+                      fontWeight: 700
                     }}
                   >
-                    <select
-                      value={assignment.child_id}
-                      disabled={Boolean(
-                        savingAssignment
-                      )}
-                      onChange={e =>
-                        changeAssignment(
-                          assignment.task_name,
-                          e.target.value
-                        )
+                    {children.map(child => (
+                      <option key={child.id} value={child.id}>
+                        {child.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {assignment.is_override && (
+                    <button
+                      type="button"
+                      disabled={Boolean(savingAssignment)}
+                      onClick={() =>
+                        restoreAssignment(assignment.task_name)
                       }
                       style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        border:
-                          '1px solid rgba(36,35,66,.15)',
-                        background: 'white',
+                        border: 0,
+                        background: 'transparent',
+                        cursor: 'pointer',
                         fontWeight: 700
                       }}
                     >
-                      {children.map(child => (
-                        <option
-                          key={child.id}
-                          value={child.id}
-                        >
-                          {child.name}
-                        </option>
-                      ))}
-                    </select>
+                      Restore Automatic
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-                    {assignment.is_override && (
-                      <button
-                        type="button"
-                        disabled={Boolean(
-                          savingAssignment
-                        )}
-                        onClick={() =>
-                          restoreAssignment(
-                            assignment.task_name
-                          )
-                        }
-                        style={{
-                          border: 0,
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          fontWeight: 700
-                        }}
-                      >
-                        Restore Automatic
-                      </button>
-                    )}
+        <div className="section-heading lower-heading">
+          <div>
+            <span>MISSION POINTS</span>
+            <h2>Rewards</h2>
+          </div>
+          <Gift size={24} />
+        </div>
+
+        {!loading && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '18px'
+            }}
+          >
+            {children.map(child => {
+              const points = Number(childPoints[child.id] || 0);
+
+              return (
+                <div
+                  className="weekly-placeholder"
+                  key={child.id}
+                  style={{ alignItems: 'flex-start' }}
+                >
+                  <div className="weekly-icon">
+                    <Gift size={25} />
+                  </div>
+
+                  <div style={{ width: '100%' }}>
+                    <small>{points} MISSION POINTS</small>
+                    <strong>{child.name}'s Rewards</strong>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: '8px',
+                        marginTop: '14px'
+                      }}
+                    >
+                      {REWARDS.map(reward => {
+                        const unlocked = points >= reward.points;
+                        const saving =
+                          redeemingReward ===
+                          `${child.id}-${reward.points}`;
+
+                        return (
+                          <button
+                            key={reward.points}
+                            type="button"
+                            disabled={
+                              !unlocked || Boolean(redeemingReward)
+                            }
+                            onClick={() =>
+                              redeemReward(child, reward)
+                            }
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '12px',
+                              padding: '10px 12px',
+                              borderRadius: '10px',
+                              border:
+                                '1px solid rgba(36,35,66,.12)',
+                              background: unlocked
+                                ? 'white'
+                                : 'rgba(255,255,255,.4)',
+                              cursor: unlocked
+                                ? 'pointer'
+                                : 'not-allowed',
+                              opacity: unlocked ? 1 : 0.55,
+                              textAlign: 'left'
+                            }}
+                          >
+                            <span>
+                              {saving
+                                ? 'Recording...'
+                                : reward.name}
+                            </span>
+
+                            <strong>
+                              {unlocked
+                                ? 'Redeem'
+                                : `${reward.points} pts`}
+                            </strong>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              )
-            )}
+              );
+            })}
           </div>
         )}
 
@@ -1484,110 +1398,79 @@ function ParentDashboard({ onLogout }) {
             <span>NEEDS YOUR ATTENTION</span>
             <h2>Bonus Missions</h2>
           </div>
-
           <Star size={24} />
         </div>
 
-        {!loading &&
-        pendingBonusMissions.length === 0 ? (
+        {!loading && pendingBonusMissions.length === 0 ? (
           <div className="weekly-placeholder">
             <div className="weekly-icon">
               <Check size={26} />
             </div>
-
             <div>
               <small>ALL CAUGHT UP</small>
-              <strong>
-                No Bonus Missions waiting
-              </strong>
-              <p>
-                New submissions from the boys will
-                appear here.
-              </p>
+              <strong>No Bonus Missions waiting</strong>
+              <p>New submissions from the boys will appear here.</p>
             </div>
           </div>
         ) : (
           <div className="mission-list">
-            {pendingBonusMissions.map(
-              mission => (
-                <div
-                  className="mission-row"
-                  key={mission.id}
-                >
-                  <div className="mission-checkbox">
-                    <Star size={18} />
-                  </div>
+            {pendingBonusMissions.map(mission => (
+              <div className="mission-row" key={mission.id}>
+                <div className="mission-checkbox">
+                  <Star size={18} />
+                </div>
 
-                  <span>
-                    <strong>
-                      {childName(mission.child_id)}
-                      {' — '}
-                      {mission.category}
-                    </strong>
+                <span>
+                  <strong>
+                    {childName(mission.child_id)} — {mission.category}
+                  </strong>
 
-                    {mission.note && (
-                      <>
-                        <br />
-                        <small>{mission.note}</small>
-                      </>
-                    )}
-                  </span>
+                  {mission.note && (
+                    <>
+                      <br />
+                      <small>{mission.note}</small>
+                    </>
+                  )}
+                </span>
 
-                  <div
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="tm-pin-submit"
                     style={{
-                      display: 'flex',
-                      gap: '8px'
+                      width: 'auto',
+                      margin: 0,
+                      padding: '9px 14px'
+                    }}
+                    disabled={Boolean(reviewingBonus)}
+                    onClick={() =>
+                      reviewBonusMission(mission.id, 'approved')
+                    }
+                  >
+                    <Check size={16} />
+                    Approve +1
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(reviewingBonus)}
+                    onClick={() =>
+                      reviewBonusMission(mission.id, 'rejected')
+                    }
+                    style={{
+                      border: '1px solid rgba(36,35,66,.15)',
+                      borderRadius: '10px',
+                      padding: '9px 14px',
+                      background: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 700
                     }}
                   >
-                    <button
-                      className="tm-pin-submit"
-                      style={{
-                        width: 'auto',
-                        margin: 0,
-                        padding: '9px 14px'
-                      }}
-                      disabled={Boolean(
-                        reviewingBonus
-                      )}
-                      onClick={() =>
-                        reviewBonusMission(
-                          mission.id,
-                          'approved'
-                        )
-                      }
-                    >
-                      <Check size={16} />
-                      Approve +1
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={Boolean(
-                        reviewingBonus
-                      )}
-                      onClick={() =>
-                        reviewBonusMission(
-                          mission.id,
-                          'rejected'
-                        )
-                      }
-                      style={{
-                        border:
-                          '1px solid rgba(36,35,66,.15)',
-                        borderRadius: '10px',
-                        padding: '9px 14px',
-                        background: 'white',
-                        cursor: 'pointer',
-                        fontWeight: 700
-                      }}
-                    >
-                      <X size={16} />
-                      Reject
-                    </button>
-                  </div>
+                    <X size={16} />
+                    Reject
+                  </button>
                 </div>
-              )
-            )}
+              </div>
+            ))}
           </div>
         )}
 
@@ -1596,52 +1479,37 @@ function ParentDashboard({ onLogout }) {
             <span>NEEDS YOUR ATTENTION</span>
             <h2>Laundry Approvals</h2>
           </div>
-
           <Shirt size={24} />
         </div>
 
-        {!loading &&
-        pendingLaundry.length === 0 ? (
+        {!loading && pendingLaundry.length === 0 ? (
           <div className="weekly-placeholder">
             <div className="weekly-icon">
               <Check size={26} />
             </div>
-
             <div>
               <small>ALL CAUGHT UP</small>
-
-              <strong>
-                No laundry waiting for approval
-              </strong>
-
+              <strong>No laundry waiting for approval</strong>
               <p>
-                When one of the boys completes all four
-                laundry steps, it will appear here.
+                When one of the boys completes all four laundry steps, it
+                will appear here.
               </p>
             </div>
           </div>
         ) : (
           <div className="mission-list">
             {pendingLaundry.map(group => {
-              const approvalKey =
-                `${group.childId}-${group.date}`;
-
-              const isApproving =
-                approving === approvalKey;
+              const approvalKey = `${group.childId}-${group.date}`;
+              const isApproving = approving === approvalKey;
 
               return (
-                <div
-                  className="mission-row"
-                  key={approvalKey}
-                >
+                <div className="mission-row" key={approvalKey}>
                   <div className="mission-checkbox">
                     <Shirt size={18} />
                   </div>
 
                   <span>
-                    <strong>
-                      {childName(group.childId)}
-                    </strong>
+                    <strong>{childName(group.childId)}</strong>
                     {' — '}
                     {group.date}
                     {' — '}
@@ -1657,20 +1525,50 @@ function ParentDashboard({ onLogout }) {
                     }}
                     disabled={Boolean(approving)}
                     onClick={() =>
-                      approveLaundry(
-                        group.childId,
-                        group.date
-                      )
+                      approveLaundry(group.childId, group.date)
                     }
                   >
-                    {isApproving
-                      ? 'Approving...'
-                      : 'Approve +4'}
+                    {isApproving ? 'Approving...' : 'Approve +4'}
                   </button>
                 </div>
               );
             })}
           </div>
+        )}
+
+        {rewardRedemptions.length > 0 && (
+          <>
+            <div className="section-heading lower-heading">
+              <div>
+                <span>RECENT</span>
+                <h2>Reward History</h2>
+              </div>
+              <Gift size={22} />
+            </div>
+
+            <div className="mission-list">
+              {rewardRedemptions.slice(0, 10).map(redemption => (
+                <div
+                  className="mission-row mission-done"
+                  key={redemption.id}
+                >
+                  <div className="mission-checkbox">
+                    <Gift size={18} />
+                  </div>
+
+                  <span>
+                    <strong>
+                      {childName(redemption.child_id)}
+                    </strong>
+                    {' — '}
+                    {redemption.reward_name}
+                  </span>
+
+                  <strong>{redemption.point_threshold} pts</strong>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {reviewedBonusMissions.length > 0 && (
@@ -1680,44 +1578,38 @@ function ParentDashboard({ onLogout }) {
                 <span>RECENT</span>
                 <h2>Reviewed Bonus Missions</h2>
               </div>
-
               <Star size={22} />
             </div>
 
             <div className="mission-list">
-              {reviewedBonusMissions
-                .slice(0, 6)
-                .map(mission => (
-                  <div
-                    className={`mission-row ${
-                      mission.status === 'approved'
-                        ? 'mission-done'
-                        : ''
-                    }`}
-                    key={mission.id}
-                  >
-                    <div className="mission-checkbox">
-                      {mission.status ===
-                      'approved' ? (
-                        <Check size={18} />
-                      ) : (
-                        <X size={18} />
-                      )}
-                    </div>
-
-                    <span>
-                      {childName(mission.child_id)}
-                      {' — '}
-                      {mission.category}
-                    </span>
-
-                    <strong>
-                      {mission.status === 'approved'
-                        ? '+1'
-                        : 'Rejected'}
-                    </strong>
+              {reviewedBonusMissions.slice(0, 6).map(mission => (
+                <div
+                  className={`mission-row ${
+                    mission.status === 'approved'
+                      ? 'mission-done'
+                      : ''
+                  }`}
+                  key={mission.id}
+                >
+                  <div className="mission-checkbox">
+                    {mission.status === 'approved' ? (
+                      <Check size={18} />
+                    ) : (
+                      <X size={18} />
+                    )}
                   </div>
-                ))}
+
+                  <span>
+                    {childName(mission.child_id)} — {mission.category}
+                  </span>
+
+                  <strong>
+                    {mission.status === 'approved'
+                      ? '+1'
+                      : 'Rejected'}
+                  </strong>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -1729,33 +1621,26 @@ function ParentDashboard({ onLogout }) {
                 <span>RECENT</span>
                 <h2>Approved Laundry</h2>
               </div>
-
               <Check size={22} />
             </div>
 
             <div className="mission-list">
-              {approvedLaundry
-                .slice(0, 6)
-                .map(group => (
-                  <div
-                    className="mission-row mission-done"
-                    key={
-                      `${group.childId}-${group.date}`
-                    }
-                  >
-                    <div className="mission-checkbox">
-                      <Check size={18} />
-                    </div>
-
-                    <span>
-                      {childName(group.childId)}
-                      {' — '}
-                      {group.date}
-                    </span>
-
-                    <strong>+4</strong>
+              {approvedLaundry.slice(0, 6).map(group => (
+                <div
+                  className="mission-row mission-done"
+                  key={`${group.childId}-${group.date}`}
+                >
+                  <div className="mission-checkbox">
+                    <Check size={18} />
                   </div>
-                ))}
+
+                  <span>
+                    {childName(group.childId)} — {group.date}
+                  </span>
+
+                  <strong>+4</strong>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -1783,10 +1668,7 @@ function PinModal({
       }}
     >
       <div className="tm-pin-modal">
-        <button
-          className="tm-modal-close"
-          onClick={onClose}
-        >
+        <button className="tm-modal-close" onClick={onClose}>
           ×
         </button>
 
@@ -1811,9 +1693,7 @@ function PinModal({
           />
 
           {error && (
-            <div className="tm-login-error">
-              {error}
-            </div>
+            <div className="tm-login-error">{error}</div>
           )}
 
           <button
@@ -1821,13 +1701,8 @@ function PinModal({
             type="submit"
             disabled={checking || !pin.trim()}
           >
-            {checking
-              ? 'Checking...'
-              : 'Open my board'}
-
-            {!checking && (
-              <ArrowRight size={19} />
-            )}
+            {checking ? 'Checking...' : 'Open my board'}
+            {!checking && <ArrowRight size={19} />}
           </button>
         </form>
       </div>
@@ -1839,7 +1714,6 @@ function Brand() {
   return (
     <div className="tm-brand">
       <div className="tm-brand-mark">M</div>
-
       <div className="tm-brand-words">
         <span>TEAM</span>
         <strong>Miller</strong>
