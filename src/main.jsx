@@ -1396,6 +1396,7 @@ function ParentDashboard({ onLogout }) {
   const [reviewingBonus, setReviewingBonus] = useState(null);
   const [redeemingReward, setRedeemingReward] = useState(null);
   const [error, setError] = useState('');
+  const [libraryBooks, setLibraryBooks] = useState([]);
 
   const [quizImportText, setQuizImportText] = useState('');
   const [quizImportPreview, setQuizImportPreview] = useState(null);
@@ -1422,7 +1423,8 @@ function ParentDashboard({ onLogout }) {
       bonusResult,
       pointsResult,
       rewardsResult,
-      fridayLaundryResult
+      fridayLaundryResult,
+      libraryResult
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -1459,7 +1461,14 @@ function ParentDashboard({ onLogout }) {
       supabase
         .from('friday_laundry_completions')
         .select('id,child_id,task_name,laundry_date,approved_at')
-        .order('laundry_date', { ascending: false })
+        .order('laundry_date', { ascending: false }),
+
+      supabase
+        .from('books')
+        .select('id,title,author,reading_level,maximum_points,quizzes!inner(id,active)')
+        .eq('is_active', true)
+        .eq('quizzes.active', true)
+        .order('title')
     ]);
 
     if (
@@ -1469,7 +1478,8 @@ function ParentDashboard({ onLogout }) {
       bonusResult.error ||
       pointsResult.error ||
       rewardsResult.error ||
-      fridayLaundryResult.error
+      fridayLaundryResult.error ||
+      libraryResult.error
     ) {
       console.error(
         profilesResult.error,
@@ -1478,7 +1488,8 @@ function ParentDashboard({ onLogout }) {
         bonusResult.error,
         pointsResult.error,
         rewardsResult.error,
-        fridayLaundryResult.error
+        fridayLaundryResult.error,
+        libraryResult.error
       );
 
       setError('Could not load the Parent Dashboard.');
@@ -1491,6 +1502,7 @@ function ParentDashboard({ onLogout }) {
     setBonusMissions(bonusResult.data || []);
     setRewardRedemptions(rewardsResult.data || []);
     setFridayLaundry(fridayLaundryResult.data || []);
+    setLibraryBooks(libraryResult.data || []);
 
     const totals = {};
 
@@ -1679,6 +1691,23 @@ function ParentDashboard({ onLogout }) {
     setRedeemingReward(null);
   }
 
+  async function undoBonusMissionReview(submissionId) {
+    setError('');
+
+    const { error: undoError } = await supabase.rpc(
+      'undo_bonus_mission_review',
+      { p_submission_id: submissionId }
+    );
+
+    if (undoError) {
+      console.error(undoError);
+      setError('Could not undo that bonus mission review.');
+      return;
+    }
+
+    await loadParentDashboard();
+  }
+
   function previewQuizImport() {
     setQuizImportError('');
     setQuizImportSuccess('');
@@ -1738,6 +1767,7 @@ function ParentDashboard({ onLogout }) {
     setQuizImportText('');
     setQuizImportPreview(null);
     setImportingQuiz(false);
+    await loadParentDashboard();
   }
 
   const groupedLaundry = laundry.reduce((groups, item) => {
@@ -1913,6 +1943,57 @@ function ParentDashboard({ onLogout }) {
             <h2>Reading Management</h2>
           </div>
           <BookOpen size={24} />
+        </div>
+
+        <div
+          className="weekly-placeholder"
+          style={{ alignItems: 'flex-start', marginBottom: '14px' }}
+        >
+          <div className="weekly-icon">
+            <BookOpen size={25} />
+          </div>
+
+          <div style={{ width: '100%', minWidth: 0 }}>
+            <small>TEAM MILLER LIBRARY</small>
+            <strong>Books With Quizzes</strong>
+            <p>
+              {libraryBooks.length} {libraryBooks.length === 1 ? 'book' : 'books'} available
+            </p>
+
+            {libraryBooks.length === 0 ? (
+              <p>No reading quizzes have been added yet.</p>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                  gap: '10px',
+                  marginTop: '12px'
+                }}
+              >
+                {libraryBooks.map(book => (
+                  <div
+                    key={book.id}
+                    style={{
+                      background: 'white',
+                      border: '1px solid rgba(36,35,66,.10)',
+                      borderRadius: '12px',
+                      padding: '13px'
+                    }}
+                  >
+                    <strong style={{ display: 'block' }}>{book.title}</strong>
+                    <span style={{ display: 'block', marginTop: '3px' }}>
+                      {book.author}
+                    </span>
+                    <small style={{ display: 'block', marginTop: '7px' }}>
+                      Level {book.reading_level || '—'} •{' '}
+                      {Number(book.maximum_points || 0).toFixed(1)} Reading Points
+                    </small>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="weekly-placeholder" style={{ alignItems: 'flex-start' }}>
@@ -2388,6 +2469,23 @@ function ParentDashboard({ onLogout }) {
                       ? '+1'
                       : 'Rejected'}
                   </strong>
+
+                  <button
+                    type="button"
+                    onClick={() => undoBonusMissionReview(mission.id)}
+                    title="Undo review"
+                    aria-label={`Undo review for ${childName(mission.child_id)} ${mission.category}`}
+                    style={{
+                      border: '1px solid rgba(36,35,66,.15)',
+                      background: 'white',
+                      color: '#181638',
+                      borderRadius: '8px',
+                      padding: '6px 9px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Undo
+                  </button>
                 </div>
               ))}
             </div>
