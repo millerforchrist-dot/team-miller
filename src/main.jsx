@@ -1497,6 +1497,7 @@ function ParentDashboard({ onLogout }) {
   const [activityTransactions, setActivityTransactions] = useState([]);
   const [showProgress, setShowProgress] = useState(true);
   const [showRewardHistory, setShowRewardHistory] = useState(false);
+  const [showReviewedBonusHistory, setShowReviewedBonusHistory] = useState(false);
   const [pinChildId, setPinChildId] = useState('');
   const [newChildPin, setNewChildPin] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
@@ -2896,8 +2897,88 @@ function ParentDashboard({ onLogout }) {
         )}
 
         {reviewedBonusMissions.length > 0 && (
-          <>
-            <div className="section-heading lower-heading">
+          <details
+            className="weekly-placeholder"
+            style={{ alignItems: 'flex-start', marginBottom: '28px' }}
+          >
+            <summary
+              onClick={e => {
+                e.preventDefault();
+                setShowReviewedBonusHistory(value => !value);
+              }}
+              style={{
+                cursor: 'pointer',
+                listStyle: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                width: '100%'
+              }}
+            >
+              <div className="weekly-icon">
+                <Star size={25} />
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <small>RECENT</small>
+                <strong>Reviewed Bonus Missions</strong>
+                <p style={{ marginBottom: 0 }}>
+                  {reviewedBonusMissions.length}{' '}
+                  {reviewedBonusMissions.length === 1 ? 'mission' : 'missions'} in review history
+                </p>
+              </div>
+
+              <span style={{ fontSize: '20px' }}>
+                {showReviewedBonusHistory ? '▴' : '▾'}
+              </span>
+            </summary>
+
+            {showReviewedBonusHistory && (
+              <div style={{ width: '100%', marginTop: '14px', display: 'grid', gap: '10px' }}>
+                {reviewedBonusMissions.map(mission => (
+                  <div
+                    key={mission.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto auto',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      background: 'white',
+                      border: '1px solid rgba(36,35,66,.10)'
+                    }}
+                  >
+                    <strong>
+                      {childName(mission.child_id)} — {mission.category}
+                    </strong>
+
+                    <span style={{ fontWeight: 800 }}>
+                      {mission.status === 'approved' ? '+1' : 'Rejected'}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => undoBonusMissionReview(mission.id)}
+                      style={{
+                        border: '1px solid rgba(36,35,66,.15)',
+                        background: 'white',
+                        color: '#181638',
+                        borderRadius: '8px',
+                        padding: '6px 9px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Undo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </details>
+        )}
+
+        <div className="section-heading lower-heading">
               <div>
                 <span>RECENT</span>
                 <h2>Reviewed Bonus Missions</h2>
