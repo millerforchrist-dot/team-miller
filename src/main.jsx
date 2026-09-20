@@ -1497,6 +1497,9 @@ function ParentDashboard({ onLogout }) {
   const [activityTransactions, setActivityTransactions] = useState([]);
   const [showProgress, setShowProgress] = useState(true);
   const [showRewardHistory, setShowRewardHistory] = useState(false);
+  const [pinChildId, setPinChildId] = useState('');
+  const [newChildPin, setNewChildPin] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
@@ -1947,6 +1950,37 @@ function ParentDashboard({ onLogout }) {
     mission => mission.status !== 'pending'
   );
 
+  async function changeChildPin() {
+    if (!pinChildId || !/^\d{4}$/.test(newChildPin)) {
+      setError('Enter a 4-digit PIN and choose a child.');
+      return;
+    }
+
+    setPinBusy(true);
+    setError('');
+
+    const { error: pinError } = await supabase.rpc(
+      'parent_change_child_pin',
+      {
+        p_child_id: pinChildId,
+        p_new_pin: newChildPin
+      }
+    );
+
+    if (pinError) {
+      console.error(pinError);
+      setError(pinError.message || 'Could not change the PIN.');
+      setPinBusy(false);
+      return;
+    }
+
+    setNewChildPin('');
+    setPinChildId('');
+    setPinBusy(false);
+    setError('');
+    window.alert('PIN changed successfully.');
+  }
+
   function childName(childId) {
     return (
       children.find(child => child.id === childId)?.name || 'Child'
@@ -2007,6 +2041,86 @@ function ParentDashboard({ onLogout }) {
         }}
       >
         {error && <div className="tm-login-error">{error}</div>}
+
+        <div className="section-heading">
+          <div>
+            <span>FAMILY SETTINGS</span>
+            <h2>Kids' PINs</h2>
+          </div>
+          <Lock size={24} />
+        </div>
+
+        <div
+          className="weekly-placeholder"
+          style={{ alignItems: 'flex-start', marginBottom: '28px' }}
+        >
+          <div className="weekly-icon">
+            <Lock size={25} />
+          </div>
+
+          <div style={{ width: '100%' }}>
+            <small>CHANGE LOGIN PIN</small>
+            <strong>Update a child's 4-digit PIN</strong>
+            <p>PINs stay securely hashed. You only need to choose the child and enter the new PIN.</p>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '10px',
+                marginTop: '12px'
+              }}
+            >
+              <select
+                value={pinChildId}
+                onChange={e => setPinChildId(e.target.value)}
+                style={{
+                  padding: '11px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(36,35,66,.18)',
+                  background: 'white'
+                }}
+              >
+                <option value="">Choose a child...</option>
+                {children.map(child => (
+                  <option key={child.id} value={child.id}>
+                    {child.name}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={newChildPin}
+                onChange={e => setNewChildPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="New 4-digit PIN"
+                style={{
+                  padding: '11px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(36,35,66,.18)',
+                  background: 'white'
+                }}
+              />
+
+              <button
+                type="button"
+                disabled={pinBusy || !pinChildId || newChildPin.length !== 4}
+                onClick={changeChildPin}
+                style={{
+                  padding: '11px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: pinBusy ? 'wait' : 'pointer',
+                  fontWeight: 800
+                }}
+              >
+                {pinBusy ? 'Saving...' : 'Change PIN'}
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div className="section-heading">
           <div>
