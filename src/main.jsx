@@ -1353,6 +1353,12 @@ function ParentDashboard({ onLogout }) {
   const [redeemingReward, setRedeemingReward] = useState(null);
   const [error, setError] = useState('');
 
+  const [quizImportText, setQuizImportText] = useState('');
+  const [quizImportPreview, setQuizImportPreview] = useState(null);
+  const [quizImportError, setQuizImportError] = useState('');
+  const [importingQuiz, setImportingQuiz] = useState(false);
+  const [quizImportSuccess, setQuizImportSuccess] = useState('');
+
   useEffect(() => {
     loadParentDashboard();
   }, []);
@@ -1629,6 +1635,67 @@ function ParentDashboard({ onLogout }) {
     setRedeemingReward(null);
   }
 
+  function previewQuizImport() {
+    setQuizImportError('');
+    setQuizImportSuccess('');
+
+    try {
+      const parsed = JSON.parse(quizImportText);
+
+      if (!parsed?.book?.title || !parsed?.book?.author) {
+        throw new Error('Book title and author are required.');
+      }
+
+      if (!Array.isArray(parsed.questions) || parsed.questions.length !== 10) {
+        throw new Error('The package must contain exactly 10 questions.');
+      }
+
+      parsed.questions.forEach((question, index) => {
+        if (!question.question || !Array.isArray(question.choices) || question.choices.length !== 4) {
+          throw new Error(`Question ${index + 1} must have exactly four choices.`);
+        }
+
+        const correctChoices = question.choices.filter(choice => choice.correct === true);
+        if (correctChoices.length !== 1) {
+          throw new Error(`Question ${index + 1} must have exactly one correct answer.`);
+        }
+      });
+
+      setQuizImportPreview(parsed);
+    } catch (importError) {
+      console.error(importError);
+      setQuizImportPreview(null);
+      setQuizImportError(importError.message || 'That quiz package is not valid.');
+    }
+  }
+
+  async function importQuizPackage() {
+    if (!quizImportPreview || importingQuiz) return;
+
+    setImportingQuiz(true);
+    setQuizImportError('');
+    setQuizImportSuccess('');
+
+    const { error: importError } = await supabase.rpc(
+      'import_reading_quiz',
+      { p_quiz: quizImportPreview }
+    );
+
+    if (importError) {
+      console.error(importError);
+      setQuizImportError(importError.message || 'Quiz could not be imported.');
+      setImportingQuiz(false);
+      return;
+    }
+
+    setQuizImportSuccess(
+      `${quizImportPreview.book.title} was added to the Reading Challenge!`
+    );
+    setQuizImportText('');
+    setQuizImportPreview(null);
+    setImportingQuiz(false);
+  }
+
   const groupedLaundry = laundry.reduce((groups, item) => {
     const key = `${item.child_id}-${item.laundry_date}`;
 
@@ -1795,6 +1862,134 @@ function ParentDashboard({ onLogout }) {
             ))}
           </div>
         )}
+
+        <div className="section-heading lower-heading">
+          <div>
+            <span>READING</span>
+            <h2>Reading Management</h2>
+          </div>
+          <BookOpen size={24} />
+        </div>
+
+        <div className="weekly-placeholder" style={{ alignItems: 'flex-start' }}>
+          <div className="weekly-icon">
+            <BookOpen size={25} />
+          </div>
+
+          <div style={{ width: '100%', minWidth: 0 }}>
+            <small>IMPORT A TEAM MILLER QUIZ</small>
+            <strong>Add a Book & Quiz</strong>
+            <p>
+              Paste the complete quiz package from ChatGPT, preview it, then add
+              it to the boys' Reading Challenge.
+            </p>
+
+            <textarea
+              value={quizImportText}
+              onChange={e => {
+                setQuizImportText(e.target.value);
+                setQuizImportPreview(null);
+                setQuizImportError('');
+                setQuizImportSuccess('');
+              }}
+              placeholder="Paste TEAM MILLER quiz package here..."
+              rows="8"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(36,35,66,.15)',
+                resize: 'vertical',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                background: 'white'
+              }}
+            />
+
+            <button
+              type="button"
+              className="tm-pin-submit"
+              disabled={!quizImportText.trim() || importingQuiz}
+              onClick={previewQuizImport}
+              style={{
+                width: 'auto',
+                marginTop: '10px',
+                padding: '10px 18px'
+              }}
+            >
+              <BookOpen size={17} />
+              Preview Quiz
+            </button>
+
+            {quizImportError && (
+              <div className="tm-login-error" style={{ marginTop: '10px' }}>
+                {quizImportError}
+              </div>
+            )}
+
+            {quizImportSuccess && (
+              <p style={{ marginTop: '12px' }}>
+                <strong>{quizImportSuccess}</strong>
+              </p>
+            )}
+
+            {quizImportPreview && (
+              <div
+                style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  background: 'rgba(255,255,255,.65)'
+                }}
+              >
+                <small>READY TO IMPORT</small>
+                <strong style={{ display: 'block', marginTop: '4px' }}>
+                  {quizImportPreview.book.title}
+                </strong>
+                <p style={{ margin: '5px 0 12px' }}>
+                  {quizImportPreview.book.author} • Level{' '}
+                  {quizImportPreview.book.reading_level || '—'} •{' '}
+                  {Number(quizImportPreview.book.maximum_points || 0).toFixed(1)}{' '}
+                  Reading Points • {quizImportPreview.questions.length} questions
+                </p>
+
+                <div style={{ display: 'grid', gap: '7px' }}>
+                  {quizImportPreview.questions.map((question, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        padding: '9px 10px',
+                        borderRadius: '9px',
+                        background: 'white',
+                        fontSize: '13px'
+                      }}
+                    >
+                      <strong>{index + 1}.</strong> {question.question}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  className="tm-pin-submit"
+                  disabled={importingQuiz}
+                  onClick={importQuizPackage}
+                  style={{
+                    width: 'auto',
+                    marginTop: '14px',
+                    padding: '10px 18px'
+                  }}
+                >
+                  <Check size={17} />
+                  {importingQuiz
+                    ? 'Adding Quiz...'
+                    : 'Add to Reading Challenge'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="section-heading lower-heading">
           <div>
