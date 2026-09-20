@@ -1945,21 +1945,41 @@ function ParentDashboard({ onLogout }) {
           <BookOpen size={24} />
         </div>
 
-        <div
+        <details
           className="weekly-placeholder"
-          style={{ alignItems: 'flex-start', marginBottom: '14px' }}
+          style={{
+            alignItems: 'flex-start',
+            marginBottom: '14px',
+            cursor: 'pointer'
+          }}
         >
-          <div className="weekly-icon">
-            <BookOpen size={25} />
-          </div>
+          <summary
+            style={{
+              listStyle: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              width: '100%'
+            }}
+          >
+            <div className="weekly-icon">
+              <BookOpen size={25} />
+            </div>
 
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <small>TEAM MILLER LIBRARY</small>
-            <strong>Books With Quizzes</strong>
-            <p>
-              {libraryBooks.length} {libraryBooks.length === 1 ? 'book' : 'books'} available
-            </p>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <small>TEAM MILLER LIBRARY</small>
+              <strong>Books With Quizzes</strong>
+              <p style={{ marginBottom: 0 }}>
+                {libraryBooks.length} {libraryBooks.length === 1 ? 'book' : 'books'} available
+              </p>
+            </div>
 
+            <span style={{ fontSize: '20px', lineHeight: 1 }}>
+              ▾
+            </span>
+          </summary>
+
+          <div style={{ width: '100%', marginTop: '14px' }}>
             {libraryBooks.length === 0 ? (
               <p>No reading quizzes have been added yet.</p>
             ) : (
@@ -1967,8 +1987,7 @@ function ParentDashboard({ onLogout }) {
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-                  gap: '10px',
-                  marginTop: '12px'
+                  gap: '10px'
                 }}
               >
                 {libraryBooks.map(book => (
@@ -1994,7 +2013,7 @@ function ParentDashboard({ onLogout }) {
               </div>
             )}
           </div>
-        </div>
+        </details>
 
         <div className="weekly-placeholder" style={{ alignItems: 'flex-start' }}>
           <div className="weekly-icon">
