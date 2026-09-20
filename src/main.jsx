@@ -321,6 +321,9 @@ function ChildDashboard({ user, onLogout }) {
   const [quizResult, setQuizResult] = useState(null);
   const [readingError, setReadingError] = useState('');
   const [readingBusy, setReadingBusy] = useState(false);
+  const [readingHistory, setReadingHistory] = useState([]);
+  const [activityHistory, setActivityHistory] = useState([]);
+  const [showReadingHistory, setShowReadingHistory] = useState(false);
 
   useEffect(() => {
     loadBoard();
@@ -344,7 +347,9 @@ function ChildDashboard({ user, onLogout }) {
       bonusResult,
       fridayLaundryResult,
       booksResult,
-      readingPointsResult
+      readingPointsResult,
+      readingHistoryResult,
+      activityResult
     ] = await Promise.all([
       supabase
         .from('daily_missions')
@@ -397,7 +402,22 @@ function ChildDashboard({ user, onLogout }) {
       supabase
         .from('reading_point_transactions')
         .select('amount')
+        .eq('child_id', user.id),
+
+      supabase
+        .from('quiz_attempts')
+        .select('id,book_id,score_percent,reading_points_earned,completed_at,is_first_attempt,books(title,author)')
         .eq('child_id', user.id)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(12),
+
+      supabase
+        .from('mission_point_transactions')
+        .select('id,amount,source_type,description,created_at')
+        .eq('child_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(12)
     ]);
 
     if (
@@ -471,6 +491,14 @@ function ChildDashboard({ user, onLogout }) {
           0
         )
       );
+    }
+
+    if (!readingHistoryResult.error) {
+      setReadingHistory(readingHistoryResult.data || []);
+    }
+
+    if (!activityResult.error) {
+      setActivityHistory(activityResult.data || []);
     }
 
     setBoardLoading(false);
@@ -717,6 +745,8 @@ function ChildDashboard({ user, onLogout }) {
     setSubmittingBonus(false);
   }
 
+  const totalPoints = missionPoints + readingPoints;
+
   const nextReward = REWARDS.find(
     reward => reward.points > missionPoints
   );
@@ -779,6 +809,15 @@ function ChildDashboard({ user, onLogout }) {
           <span>READING POINTS</span>
           <strong>{readingPoints}</strong>
           <small>Every book is an adventure.</small>
+        </div>
+
+        <div className="point-card total-point">
+          <div className="point-icon">
+            <Trophy size={25} />
+          </div>
+          <span>TOTAL POINTS</span>
+          <strong>{totalPoints}</strong>
+          <small>Mission + Reading</small>
         </div>
 
         <div className="point-card reward-point">
@@ -1366,6 +1405,72 @@ function ChildDashboard({ user, onLogout }) {
             )}
           </div>
 
+          <div className="side-card reading-card">
+            <div className="side-card-title">
+              <Clock size={23} />
+              <div>
+                <small>YOUR PROGRESS</small>
+                <h3>Reading History</h3>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowReadingHistory(value => !value)}
+            >
+              {showReadingHistory ? 'Hide History' : 'View My Books'}
+              <ArrowRight size={18} />
+            </button>
+
+            {showReadingHistory && (
+              <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+                {readingHistory.length === 0 ? (
+                  <p>No completed quizzes yet.</p>
+                ) : (
+                  readingHistory.map(attempt => (
+                    <div
+                      key={attempt.id}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '10px',
+                        background: 'rgba(255,255,255,.55)'
+                      }}
+                    >
+                      <strong>{attempt.books?.title || 'Book'}</strong>
+                      <div style={{ fontSize: '12px', marginTop: '3px' }}>
+                        {Number(attempt.score_percent || 0)}% • +
+                        {Number(attempt.reading_points_earned || 0).toFixed(1)}
+                        {' '}Reading Points
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activityHistory.length > 0 && (
+              <div style={{ marginTop: '14px' }}>
+                <small>RECENT MISSION ACTIVITY</small>
+                <div style={{ display: 'grid', gap: '6px', marginTop: '7px' }}>
+                  {activityHistory.slice(0, 5).map(item => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <span>{item.description}</span>
+                      <strong>{Number(item.amount) > 0 ? '+' : ''}{Number(item.amount)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="side-card verse-card">
             <Trophy size={22} />
             <p>
@@ -1388,6 +1493,10 @@ function ParentDashboard({ onLogout }) {
   const [bonusMissions, setBonusMissions] = useState([]);
   const [childPoints, setChildPoints] = useState({});
   const [rewardRedemptions, setRewardRedemptions] = useState([]);
+  const [readingAttempts, setReadingAttempts] = useState([]);
+  const [activityTransactions, setActivityTransactions] = useState([]);
+  const [showProgress, setShowProgress] = useState(true);
+  const [showRewardHistory, setShowRewardHistory] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
@@ -1424,7 +1533,9 @@ function ParentDashboard({ onLogout }) {
       pointsResult,
       rewardsResult,
       fridayLaundryResult,
-      libraryResult
+      libraryResult,
+      readingAttemptsResult,
+      activityTransactionsResult
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -1468,7 +1579,20 @@ function ParentDashboard({ onLogout }) {
         .select('id,title,author,reading_level,maximum_points,quizzes!inner(id,active)')
         .eq('is_active', true)
         .eq('quizzes.active', true)
-        .order('title')
+        .order('title'),
+
+      supabase
+        .from('quiz_attempts')
+        .select('id,child_id,book_id,score_percent,reading_points_earned,completed_at,is_first_attempt,books(title,author)')
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(40),
+
+      supabase
+        .from('mission_point_transactions')
+        .select('id,child_id,amount,source_type,description,created_at')
+        .order('created_at', { ascending: false })
+        .limit(60)
     ]);
 
     if (
@@ -1479,7 +1603,9 @@ function ParentDashboard({ onLogout }) {
       pointsResult.error ||
       rewardsResult.error ||
       fridayLaundryResult.error ||
-      libraryResult.error
+      libraryResult.error ||
+      readingAttemptsResult.error ||
+      activityTransactionsResult.error
     ) {
       console.error(
         profilesResult.error,
@@ -1489,7 +1615,9 @@ function ParentDashboard({ onLogout }) {
         pointsResult.error,
         rewardsResult.error,
         fridayLaundryResult.error,
-        libraryResult.error
+        libraryResult.error,
+        readingAttemptsResult.error,
+        activityTransactionsResult.error
       );
 
       setError('Could not load the Parent Dashboard.');
@@ -1503,6 +1631,8 @@ function ParentDashboard({ onLogout }) {
     setRewardRedemptions(rewardsResult.data || []);
     setFridayLaundry(fridayLaundryResult.data || []);
     setLibraryBooks(libraryResult.data || []);
+    setReadingAttempts(readingAttemptsResult.data || []);
+    setActivityTransactions(activityTransactionsResult.data || []);
 
     const totals = {};
 
@@ -1823,6 +1953,23 @@ function ParentDashboard({ onLogout }) {
     );
   }
 
+  function childReadingPoints(childId) {
+    return readingAttempts
+      .filter(attempt => attempt.child_id === childId && attempt.is_first_attempt)
+      .reduce(
+        (total, attempt) => total + Number(attempt.reading_points_earned || 0),
+        0
+      );
+  }
+
+  function childBooksCompleted(childId) {
+    return new Set(
+      readingAttempts
+        .filter(attempt => attempt.child_id === childId && attempt.completed_at)
+        .map(attempt => attempt.book_id)
+    ).size;
+  }
+
   return (
     <main className="tm-dashboard">
       <header className="tm-dashboard-header">
@@ -1860,6 +2007,92 @@ function ParentDashboard({ onLogout }) {
         }}
       >
         {error && <div className="tm-login-error">{error}</div>}
+
+        <div className="section-heading">
+          <div>
+            <span>FAMILY OVERVIEW</span>
+            <h2>Progress Dashboard</h2>
+          </div>
+          <Trophy size={24} />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowProgress(value => !value)}
+          style={{
+            width: '100%',
+            textAlign: 'left',
+            padding: '14px 16px',
+            borderRadius: '12px',
+            border: '1px solid rgba(36,35,66,.12)',
+            background: 'white',
+            cursor: 'pointer',
+            fontWeight: 800,
+            marginBottom: '12px'
+          }}
+        >
+          {showProgress ? 'Hide Family Progress' : 'Show Family Progress'}
+        </button>
+
+        {showProgress && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '14px',
+              marginBottom: '28px'
+            }}
+          >
+            {children.map(child => {
+              const mission = Number(childPoints[child.id] || 0);
+              const reading = childReadingPoints(child.id);
+              const total = mission + reading;
+
+              return (
+                <div
+                  className="weekly-placeholder"
+                  key={child.id}
+                  style={{ alignItems: 'flex-start' }}
+                >
+                  <div className="weekly-icon">
+                    <Trophy size={25} />
+                  </div>
+                  <div style={{ width: '100%' }}>
+                    <small>TEAM MILLER PROGRESS</small>
+                    <strong>{child.name}</strong>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '8px',
+                        marginTop: '12px'
+                      }}
+                    >
+                      <div>
+                        <small>MISSION</small>
+                        <strong>{mission}</strong>
+                      </div>
+                      <div>
+                        <small>READING</small>
+                        <strong>{reading.toFixed(1)}</strong>
+                      </div>
+                      <div>
+                        <small>TOTAL</small>
+                        <strong>{total.toFixed(1)}</strong>
+                      </div>
+                    </div>
+
+                    <p style={{ marginBottom: 0, marginTop: '10px' }}>
+                      {childBooksCompleted(child.id)} books completed •{' '}
+                      {readingAttempts.filter(a => a.child_id === child.id).length} quiz attempts
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="section-heading">
           <div>
@@ -2134,6 +2367,83 @@ function ParentDashboard({ onLogout }) {
             )}
           </div>
         </div>
+
+        <div className="section-heading lower-heading">
+          <div>
+            <span>ACTIVITY</span>
+            <h2>Reading & Mission History</h2>
+          </div>
+          <Clock size={24} />
+        </div>
+
+        <details className="weekly-placeholder" style={{ marginBottom: '14px' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 800 }}>
+            Recent Reading Quizzes ({readingAttempts.length})
+          </summary>
+
+          <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+            {readingAttempts.length === 0 ? (
+              <p>No completed reading quizzes yet.</p>
+            ) : (
+              readingAttempts.slice(0, 20).map(attempt => (
+                <div
+                  key={attempt.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto auto',
+                    gap: '12px',
+                    alignItems: 'center',
+                    padding: '10px',
+                    borderRadius: '10px',
+                    background: 'white'
+                  }}
+                >
+                  <span>
+                    <strong>{childName(attempt.child_id)}</strong> —{' '}
+                    {attempt.books?.title || 'Book'}
+                  </span>
+                  <span>{Number(attempt.score_percent || 0)}%</span>
+                  <strong>+{Number(attempt.reading_points_earned || 0).toFixed(1)}</strong>
+                </div>
+              ))
+            )}
+          </div>
+        </details>
+
+        <details className="weekly-placeholder" style={{ marginBottom: '14px' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 800 }}>
+            Recent Mission Activity ({activityTransactions.length})
+          </summary>
+
+          <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+            {activityTransactions.length === 0 ? (
+              <p>No mission activity yet.</p>
+            ) : (
+              activityTransactions.slice(0, 20).map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: '12px',
+                    alignItems: 'center',
+                    padding: '10px',
+                    borderRadius: '10px',
+                    background: 'white'
+                  }}
+                >
+                  <span>
+                    <strong>{childName(item.child_id)}</strong> — {item.description}
+                  </span>
+                  <strong>
+                    {Number(item.amount) > 0 ? '+' : ''}
+                    {Number(item.amount)}
+                  </strong>
+                </div>
+              ))
+            )}
+          </div>
+        </details>
 
         <div className="section-heading lower-heading">
           <div>
@@ -2426,6 +2736,25 @@ function ParentDashboard({ onLogout }) {
               <Gift size={22} />
             </div>
 
+            <button
+              type="button"
+              onClick={() => setShowRewardHistory(value => !value)}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                border: '1px solid rgba(36,35,66,.12)',
+                background: 'white',
+                cursor: 'pointer',
+                fontWeight: 800,
+                marginBottom: '10px'
+              }}
+            >
+              {showRewardHistory ? 'Hide Reward History' : 'Show Reward History'}
+            </button>
+
+            {showRewardHistory && (
             <div className="mission-list">
               {rewardRedemptions.slice(0, 10).map(redemption => (
                 <div
@@ -2448,6 +2777,7 @@ function ParentDashboard({ onLogout }) {
                 </div>
               ))}
             </div>
+            )}
           </>
         )}
 
