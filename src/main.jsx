@@ -286,6 +286,9 @@ function ChildDashboard({ user, onLogout }) {
   const [laundryCompleted, setLaundryCompleted] = useState([]);
   const [savingLaundry, setSavingLaundry] = useState(null);
   const [laundryError, setLaundryError] = useState('');
+  const [fridayLaundry, setFridayLaundry] = useState([]);
+  const [savingFridayLaundry, setSavingFridayLaundry] = useState(null);
+  const [fridayLaundryError, setFridayLaundryError] = useState('');
 
   const [weeklyAssignments, setWeeklyAssignments] = useState([]);
 
@@ -316,7 +319,8 @@ function ChildDashboard({ user, onLogout }) {
       pointsResult,
       laundryResult,
       weeklyResult,
-      bonusResult
+      bonusResult,
+      fridayLaundryResult
     ] = await Promise.all([
       supabase
         .from('daily_missions')
@@ -353,7 +357,12 @@ function ChildDashboard({ user, onLogout }) {
         .select('id,category,note,status,submitted_at')
         .eq('child_id', user.id)
         .order('submitted_at', { ascending: false })
-        .limit(5)
+        .limit(5),
+
+      supabase
+        .from('friday_laundry_completions')
+        .select('id,task_name,child_id,laundry_date,approved_at')
+        .eq('laundry_date', today)
     ]);
 
     if (
@@ -401,6 +410,13 @@ function ChildDashboard({ user, onLogout }) {
       setBonusError('Could not load Bonus Missions.');
     } else {
       setBonusMissions(bonusResult.data || []);
+    }
+
+    if (fridayLaundryResult.error) {
+      console.error(fridayLaundryResult.error);
+      setFridayLaundryError('Could not load Friday laundry.');
+    } else {
+      setFridayLaundry(fridayLaundryResult.data || []);
     }
 
     setBoardLoading(false);
@@ -460,6 +476,31 @@ function ChildDashboard({ user, onLogout }) {
 
     await loadBoard();
     setSavingLaundry(null);
+  }
+
+  async function toggleFridayLaundry(taskName) {
+    if (savingFridayLaundry) return;
+    setSavingFridayLaundry(taskName);
+    setFridayLaundryError('');
+
+    const { error } = await supabase.rpc('toggle_friday_laundry', {
+      p_child_id: user.id,
+      p_task_name: taskName
+    });
+
+    if (error) {
+      console.error(error);
+      setFridayLaundryError(
+        error.message?.includes('only be completed on Friday')
+          ? 'Bedding and Towels are Friday jobs.'
+          : 'That Friday laundry task could not be updated.'
+      );
+      setSavingFridayLaundry(null);
+      return;
+    }
+
+    await loadBoard();
+    setSavingFridayLaundry(null);
   }
 
   async function submitBonusMission(e) {
@@ -717,6 +758,71 @@ function ChildDashboard({ user, onLogout }) {
             </div>
           </div>
 
+          <div className="side-card laundry-card">
+            <div className="side-card-title">
+              <Shirt size={23} />
+              <div>
+                <small>FRIDAY FAMILY LAUNDRY</small>
+                <h3>Bedding & Towels</h3>
+              </div>
+            </div>
+
+            <p>
+              Take care of your own bedding on Friday. Towels are shared —
+              the first brother to claim them gets the task.
+            </p>
+
+            <div className="laundry-steps">
+              {['Bedding', 'Towels'].map((task, index) => {
+                const record = task === 'Bedding'
+                  ? fridayLaundry.find(item =>
+                      item.task_name === 'Bedding' &&
+                      item.child_id === user.id
+                    )
+                  : fridayLaundry.find(item => item.task_name === 'Towels');
+
+                const done = Boolean(record);
+                const mine = record?.child_id === user.id;
+                const claimedByOther = task === 'Towels' && done && !mine;
+                const saving = savingFridayLaundry === task;
+
+                return (
+                  <button
+                    key={task}
+                    type="button"
+                    className={done ? 'laundry-step-done' : ''}
+                    onClick={() => toggleFridayLaundry(task)}
+                    disabled={
+                      Boolean(savingFridayLaundry) ||
+                      claimedByOther ||
+                      Boolean(record?.approved_at)
+                    }
+                  >
+                    <span>{done ? <Check size={14} /> : index + 1}</span>
+                    {saving
+                      ? 'Saving...'
+                      : claimedByOther
+                        ? 'Towels — Already Claimed'
+                        : record?.approved_at
+                          ? `${task} — Approved +1`
+                          : done
+                            ? `${task} — Waiting for Approval`
+                            : `${task} +1`}
+                  </button>
+                );
+              })}
+            </div>
+
+            {fridayLaundryError && (
+              <div className="tm-login-error">{fridayLaundryError}</div>
+            )}
+
+            <div className="laundry-note">
+              <Clock size={17} />
+              Friday only • Parent approval required
+            </div>
+          </div>
+
           <div className="side-card bonus-card">
             <div className="side-card-title">
               <Star size={23} />
@@ -877,6 +983,7 @@ function ChildDashboard({ user, onLogout }) {
 function ParentDashboard({ onLogout }) {
   const [children, setChildren] = useState([]);
   const [laundry, setLaundry] = useState([]);
+  const [fridayLaundry, setFridayLaundry] = useState([]);
   const [weeklyAssignments, setWeeklyAssignments] = useState([]);
   const [bonusMissions, setBonusMissions] = useState([]);
   const [childPoints, setChildPoints] = useState({});
@@ -884,6 +991,7 @@ function ParentDashboard({ onLogout }) {
 
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
+  const [approvingFridayLaundry, setApprovingFridayLaundry] = useState(null);
   const [savingAssignment, setSavingAssignment] = useState(null);
   const [reviewingBonus, setReviewingBonus] = useState(null);
   const [redeemingReward, setRedeemingReward] = useState(null);
@@ -907,7 +1015,8 @@ function ParentDashboard({ onLogout }) {
       weeklyResult,
       bonusResult,
       pointsResult,
-      rewardsResult
+      rewardsResult,
+      fridayLaundryResult
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -939,7 +1048,12 @@ function ParentDashboard({ onLogout }) {
         .select(
           'id,child_id,reward_name,point_threshold,parent_note,redeemed_at'
         )
-        .order('redeemed_at', { ascending: false })
+        .order('redeemed_at', { ascending: false }),
+
+      supabase
+        .from('friday_laundry_completions')
+        .select('id,child_id,task_name,laundry_date,approved_at')
+        .order('laundry_date', { ascending: false })
     ]);
 
     if (
@@ -948,7 +1062,8 @@ function ParentDashboard({ onLogout }) {
       weeklyResult.error ||
       bonusResult.error ||
       pointsResult.error ||
-      rewardsResult.error
+      rewardsResult.error ||
+      fridayLaundryResult.error
     ) {
       console.error(
         profilesResult.error,
@@ -956,7 +1071,8 @@ function ParentDashboard({ onLogout }) {
         weeklyResult.error,
         bonusResult.error,
         pointsResult.error,
-        rewardsResult.error
+        rewardsResult.error,
+        fridayLaundryResult.error
       );
 
       setError('Could not load the Parent Dashboard.');
@@ -968,6 +1084,7 @@ function ParentDashboard({ onLogout }) {
     setLaundry(laundryResult.data || []);
     setBonusMissions(bonusResult.data || []);
     setRewardRedemptions(rewardsResult.data || []);
+    setFridayLaundry(fridayLaundryResult.data || []);
 
     const totals = {};
 
@@ -1016,6 +1133,27 @@ function ParentDashboard({ onLogout }) {
 
     await loadParentDashboard();
     setApproving(null);
+  }
+
+  async function approveFridayLaundry(completionId) {
+    if (approvingFridayLaundry) return;
+    setApprovingFridayLaundry(completionId);
+    setError('');
+
+    const { error: approvalError } = await supabase.rpc(
+      'approve_friday_laundry',
+      { p_completion_id: completionId }
+    );
+
+    if (approvalError) {
+      console.error(approvalError);
+      setError('Friday laundry could not be approved.');
+      setApprovingFridayLaundry(null);
+      return;
+    }
+
+    await loadParentDashboard();
+    setApprovingFridayLaundry(null);
   }
 
   async function changeAssignment(taskName, childId) {
@@ -1164,6 +1302,14 @@ function ParentDashboard({ onLogout }) {
 
   const approvedLaundry = laundryGroups.filter(
     group => group.steps.length === 4 && group.approved
+  );
+
+  const pendingFridayLaundry = fridayLaundry.filter(
+    item => !item.approved_at
+  );
+
+  const approvedFridayLaundry = fridayLaundry.filter(
+    item => item.approved_at
   );
 
   const pendingBonusMissions = bonusMissions.filter(
@@ -1476,6 +1622,45 @@ function ParentDashboard({ onLogout }) {
 
         <div className="section-heading lower-heading">
           <div>
+            <span>FRIDAY</span>
+            <h2>Bedding & Towels Approvals</h2>
+          </div>
+          <Shirt size={24} />
+        </div>
+
+        {!loading && pendingFridayLaundry.length === 0 ? (
+          <div className="weekly-placeholder">
+            <div className="weekly-icon"><Check size={26} /></div>
+            <div>
+              <small>ALL CAUGHT UP</small>
+              <strong>No Friday laundry waiting</strong>
+              <p>Bedding and towel submissions will appear here.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="mission-list">
+            {pendingFridayLaundry.map(item => (
+              <div className="mission-row" key={item.id}>
+                <div className="mission-checkbox"><Shirt size={18} /></div>
+                <span>
+                  <strong>{childName(item.child_id)}</strong>
+                  {' — '}{item.task_name}{' — '}{item.laundry_date}
+                </span>
+                <button
+                  className="tm-pin-submit"
+                  style={{ width: 'auto', margin: 0, padding: '10px 18px' }}
+                  disabled={Boolean(approvingFridayLaundry)}
+                  onClick={() => approveFridayLaundry(item.id)}
+                >
+                  {approvingFridayLaundry === item.id ? 'Approving...' : 'Approve +1'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="section-heading lower-heading">
+          <div>
             <span>NEEDS YOUR ATTENTION</span>
             <h2>Laundry Approvals</h2>
           </div>
@@ -1608,6 +1793,30 @@ function ParentDashboard({ onLogout }) {
                       ? '+1'
                       : 'Rejected'}
                   </strong>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {approvedFridayLaundry.length > 0 && (
+          <>
+            <div className="section-heading lower-heading">
+              <div>
+                <span>RECENT</span>
+                <h2>Approved Friday Laundry</h2>
+              </div>
+              <Check size={22} />
+            </div>
+
+            <div className="mission-list">
+              {approvedFridayLaundry.slice(0, 8).map(item => (
+                <div className="mission-row mission-done" key={item.id}>
+                  <div className="mission-checkbox"><Check size={18} /></div>
+                  <span>
+                    {childName(item.child_id)} — {item.task_name} — {item.laundry_date}
+                  </span>
+                  <strong>+1</strong>
                 </div>
               ))}
             </div>
