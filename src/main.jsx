@@ -1539,11 +1539,16 @@ function ChildDashboard({ user, onLogout }) {
                       background: unlocked ? 'white' : 'rgba(255,255,255,.4)',
                       cursor: unlocked ? 'pointer' : 'not-allowed',
                       opacity: unlocked ? 1 : 0.55,
-                      textAlign: 'left'
+                      textAlign: 'left',
+                      color: '#181638'
                     }}
                   >
-                    <span>{saving ? 'Redeeming...' : reward.name}</span>
-                    <strong>{unlocked ? `${reward.points} pts • Redeem` : `${reward.points} pts`}</strong>
+                    <span style={{ color: '#181638', fontWeight: 700 }}>
+                      {saving ? 'Redeeming...' : reward.name}
+                    </span>
+                    <strong style={{ color: '#181638' }}>
+                      {unlocked ? `${reward.points} pts • Redeem` : `${reward.points} pts`}
+                    </strong>
                   </button>
                 );
               })}
