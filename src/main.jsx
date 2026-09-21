@@ -1502,6 +1502,17 @@ function ParentDashboard({ onLogout }) {
   const [newChildPin, setNewChildPin] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
 
+  const [excusedDays, setExcusedDays] = useState([]);
+  const [excuseChildId, setExcuseChildId] = useState('');
+  const [excuseDate, setExcuseDate] = useState(localDate());
+  const [excuseReason, setExcuseReason] = useState('');
+  const [excuseBusy, setExcuseBusy] = useState(false);
+
+  const [adjustChildId, setAdjustChildId] = useState('');
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [adjustBusy, setAdjustBusy] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [approvingFridayLaundry, setApprovingFridayLaundry] = useState(null);
@@ -1539,7 +1550,8 @@ function ParentDashboard({ onLogout }) {
       fridayLaundryResult,
       libraryResult,
       readingAttemptsResult,
-      activityTransactionsResult
+      activityTransactionsResult,
+      excusedDaysResult
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -1596,7 +1608,13 @@ function ParentDashboard({ onLogout }) {
         .from('mission_point_transactions')
         .select('id,child_id,amount,source_type,description,created_at')
         .order('created_at', { ascending: false })
-        .limit(60)
+        .limit(60),
+
+      supabase
+        .from('chore_excused_days')
+        .select('id,child_id,excused_date,reason,created_at')
+        .order('excused_date', { ascending: false })
+        .limit(30)
     ]);
 
     if (
@@ -1609,7 +1627,8 @@ function ParentDashboard({ onLogout }) {
       fridayLaundryResult.error ||
       libraryResult.error ||
       readingAttemptsResult.error ||
-      activityTransactionsResult.error
+      activityTransactionsResult.error ||
+      excusedDaysResult.error
     ) {
       console.error(
         profilesResult.error,
@@ -1621,7 +1640,8 @@ function ParentDashboard({ onLogout }) {
         fridayLaundryResult.error,
         libraryResult.error,
         readingAttemptsResult.error,
-        activityTransactionsResult.error
+        activityTransactionsResult.error,
+        excusedDaysResult.error
       );
 
       setError('Could not load the Parent Dashboard.');
@@ -1637,6 +1657,7 @@ function ParentDashboard({ onLogout }) {
     setLibraryBooks(libraryResult.data || []);
     setReadingAttempts(readingAttemptsResult.data || []);
     setActivityTransactions(activityTransactionsResult.data || []);
+    setExcusedDays(excusedDaysResult.data || []);
 
     const totals = {};
 
@@ -1796,7 +1817,7 @@ function ParentDashboard({ onLogout }) {
     }
 
     const confirmed = window.confirm(
-      `Record "${reward.name}" for ${child.name}?\n\nThis will NOT subtract Mission Points.`
+      `Redeem "${reward.name}" for ${child.name}?\n\nThis will deduct ${reward.points} Mission Points.`
     );
 
     if (!confirmed) return;
@@ -1902,6 +1923,99 @@ function ParentDashboard({ onLogout }) {
     setQuizImportPreview(null);
     setImportingQuiz(false);
     await loadParentDashboard();
+  }
+
+  async function excuseChoreDay() {
+    if (!excuseChildId || !excuseDate) {
+      setError('Choose a child and date to excuse.');
+      return;
+    }
+
+    setExcuseBusy(true);
+    setError('');
+
+    const { error: excuseError } = await supabase.rpc(
+      'parent_excuse_chore_day',
+      {
+        p_child_id: excuseChildId,
+        p_excused_date: excuseDate,
+        p_reason: excuseReason.trim() || null
+      }
+    );
+
+    if (excuseError) {
+      console.error(excuseError);
+      setError(excuseError.message || 'Could not excuse that chore day.');
+      setExcuseBusy(false);
+      return;
+    }
+
+    setExcuseReason('');
+    await loadParentDashboard();
+    setExcuseBusy(false);
+  }
+
+  async function unexcuseChoreDay(childId, excusedDate) {
+    if (excuseBusy) return;
+
+    setExcuseBusy(true);
+    setError('');
+
+    const { error: unexcuseError } = await supabase.rpc(
+      'parent_unexcuse_chore_day',
+      {
+        p_child_id: childId,
+        p_excused_date: excusedDate
+      }
+    );
+
+    if (unexcuseError) {
+      console.error(unexcuseError);
+      setError(unexcuseError.message || 'Could not remove that excused day.');
+      setExcuseBusy(false);
+      return;
+    }
+
+    await loadParentDashboard();
+    setExcuseBusy(false);
+  }
+
+  async function adjustMissionPoints() {
+    const amount = Number(adjustAmount);
+
+    if (!adjustChildId || !Number.isFinite(amount) || amount === 0) {
+      setError('Choose a child and enter a non-zero point amount.');
+      return;
+    }
+
+    if (!adjustReason.trim()) {
+      setError('A reason is required for point adjustments.');
+      return;
+    }
+
+    setAdjustBusy(true);
+    setError('');
+
+    const { error: adjustmentError } = await supabase.rpc(
+      'parent_adjust_mission_points',
+      {
+        p_child_id: adjustChildId,
+        p_amount: amount,
+        p_reason: adjustReason.trim()
+      }
+    );
+
+    if (adjustmentError) {
+      console.error(adjustmentError);
+      setError(adjustmentError.message || 'Could not adjust Mission Points.');
+      setAdjustBusy(false);
+      return;
+    }
+
+    setAdjustAmount('');
+    setAdjustReason('');
+    await loadParentDashboard();
+    setAdjustBusy(false);
   }
 
   const groupedLaundry = laundry.reduce((groups, item) => {
@@ -2118,6 +2232,94 @@ function ParentDashboard({ onLogout }) {
                 }}
               >
                 {pinBusy ? 'Saving...' : 'Change PIN'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="section-heading">
+          <div>
+            <span>CHORE CONTROLS</span>
+            <h2>Excused Days & Point Adjustments</h2>
+          </div>
+          <Check size={24} />
+        </div>
+
+        <div className="weekly-placeholder" style={{ alignItems: 'flex-start', marginBottom: '18px' }}>
+          <div className="weekly-icon"><Check size={25} /></div>
+          <div style={{ width: '100%' }}>
+            <small>EXCUSE REQUIRED CHORES</small>
+            <strong>Excuse a child for a day</strong>
+            <p>An excused day will not receive automatic missed-chore penalties.</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginTop: '12px' }}>
+              <select value={excuseChildId} onChange={e => setExcuseChildId(e.target.value)}
+                style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid rgba(36,35,66,.18)', background: 'white' }}>
+                <option value="">Choose a child...</option>
+                {children.map(child => <option key={child.id} value={child.id}>{child.name}</option>)}
+              </select>
+
+              <input type="date" value={excuseDate} onChange={e => setExcuseDate(e.target.value)}
+                style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid rgba(36,35,66,.18)', background: 'white' }} />
+
+              <input type="text" value={excuseReason} onChange={e => setExcuseReason(e.target.value)}
+                placeholder="Reason (optional)" maxLength={250}
+                style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid rgba(36,35,66,.18)', background: 'white' }} />
+
+              <button type="button" disabled={excuseBusy || !excuseChildId || !excuseDate} onClick={excuseChoreDay}
+                style={{ padding: '11px 14px', borderRadius: '10px', border: 'none', cursor: excuseBusy ? 'wait' : 'pointer', fontWeight: 800 }}>
+                {excuseBusy ? 'Saving...' : 'Excuse Chores'}
+              </button>
+            </div>
+
+            {excusedDays.length > 0 && (
+              <div style={{ display: 'grid', gap: '8px', marginTop: '16px' }}>
+                <small>RECENT EXCUSED DAYS</small>
+                {excusedDays.slice(0, 10).map(item => (
+                  <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', alignItems: 'center', padding: '10px 12px', borderRadius: '10px', background: 'white' }}>
+                    <span>
+                      <strong>{childName(item.child_id)}</strong> — {item.excused_date}
+                      {item.reason ? ` — ${item.reason}` : ''}
+                    </span>
+                    <button type="button" disabled={excuseBusy}
+                      onClick={() => unexcuseChoreDay(item.child_id, item.excused_date)}
+                      style={{ border: '1px solid rgba(36,35,66,.15)', background: 'white', borderRadius: '8px', padding: '7px 10px', cursor: excuseBusy ? 'wait' : 'pointer', fontWeight: 700 }}>
+                      Un-excuse
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="weekly-placeholder" style={{ alignItems: 'flex-start', marginBottom: '28px' }}>
+          <div className="weekly-icon"><Star size={25} /></div>
+          <div style={{ width: '100%' }}>
+            <small>MISSION POINTS</small>
+            <strong>Manual Point Adjustment</strong>
+            <p>Add or subtract Mission Points. Use a negative number to deduct points. A reason is required.</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginTop: '12px' }}>
+              <select value={adjustChildId} onChange={e => setAdjustChildId(e.target.value)}
+                style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid rgba(36,35,66,.18)', background: 'white' }}>
+                <option value="">Choose a child...</option>
+                {children.map(child => <option key={child.id} value={child.id}>{child.name}</option>)}
+              </select>
+
+              <input type="number" step="1" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)}
+                placeholder="+5 or -5"
+                style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid rgba(36,35,66,.18)', background: 'white' }} />
+
+              <input type="text" value={adjustReason} onChange={e => setAdjustReason(e.target.value)}
+                placeholder="Reason (required)" maxLength={500}
+                style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid rgba(36,35,66,.18)', background: 'white' }} />
+
+              <button type="button"
+                disabled={adjustBusy || !adjustChildId || !adjustAmount || !adjustReason.trim()}
+                onClick={adjustMissionPoints}
+                style={{ padding: '11px 14px', borderRadius: '10px', border: 'none', cursor: adjustBusy ? 'wait' : 'pointer', fontWeight: 800 }}>
+                {adjustBusy ? 'Saving...' : 'Adjust Points'}
               </button>
             </div>
           </div>
