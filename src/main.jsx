@@ -1697,7 +1697,7 @@ function ParentDashboard({ onLogout }) {
 
       supabase
         .from('mission_point_transactions')
-        .select('id,child_id,amount,source_type,description,created_at')
+        .select('id,child_id,amount,source_type,source_id,description,created_at')
         .order('created_at', { ascending: false })
         .limit(60),
 
@@ -1743,7 +1743,20 @@ function ParentDashboard({ onLogout }) {
     setChildren(profilesResult.data || []);
     setLaundry(laundryResult.data || []);
     setBonusMissions(bonusResult.data || []);
-    setRewardRedemptions(rewardsResult.data || []);
+
+    const undoneRewardIds = new Set(
+      (activityTransactionsResult.data || [])
+        .filter(transaction => transaction.source_type === 'reward_redemption_undo')
+        .map(transaction => transaction.source_id)
+        .filter(Boolean)
+    );
+
+    setRewardRedemptions(
+      (rewardsResult.data || []).filter(
+        redemption => !undoneRewardIds.has(redemption.id)
+      )
+    );
+
     setFridayLaundry(fridayLaundryResult.data || []);
     setLibraryBooks(libraryResult.data || []);
     setReadingAttempts(readingAttemptsResult.data || []);
