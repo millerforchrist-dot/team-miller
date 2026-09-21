@@ -324,6 +324,8 @@ function ChildDashboard({ user, onLogout }) {
   const [readingHistory, setReadingHistory] = useState([]);
   const [activityHistory, setActivityHistory] = useState([]);
   const [showReadingHistory, setShowReadingHistory] = useState(false);
+  const [redeemingChildReward, setRedeemingChildReward] = useState(null);
+  const [rewardError, setRewardError] = useState('');
 
   useEffect(() => {
     loadBoard();
@@ -743,6 +745,38 @@ function ChildDashboard({ user, onLogout }) {
 
     await loadBoard();
     setSubmittingBonus(false);
+  }
+
+  async function redeemOwnReward(reward) {
+    if (redeemingChildReward || missionPoints < reward.points) return;
+
+    const confirmed = window.confirm(
+      `Redeem "${reward.name}"?\n\nThis will deduct ${reward.points} Mission Points.`
+    );
+
+    if (!confirmed) return;
+
+    setRedeemingChildReward(reward.points);
+    setRewardError('');
+
+    const { error } = await supabase.rpc('redeem_reward', {
+      p_child_id: user.id,
+      p_reward_name: reward.name,
+      p_point_threshold: reward.points,
+      p_parent_note: null
+    });
+
+    if (error) {
+      console.error(error);
+      setRewardError(
+        `Reward could not be redeemed: ${error.message || 'Unknown error'}`
+      );
+      setRedeemingChildReward(null);
+      return;
+    }
+
+    await loadBoard();
+    setRedeemingChildReward(null);
   }
 
   const totalPoints = missionPoints + readingPoints;
@@ -1471,6 +1505,57 @@ function ChildDashboard({ user, onLogout }) {
             )}
           </div>
 
+          <div className="side-card bonus-card">
+            <div className="side-card-title">
+              <Gift size={23} />
+              <div>
+                <small>SPEND MISSION POINTS</small>
+                <h3>Rewards</h3>
+              </div>
+            </div>
+
+            <p>Choose any reward you have enough Mission Points to redeem.</p>
+
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {REWARDS.map(reward => {
+                const unlocked = missionPoints >= reward.points;
+                const saving = redeemingChildReward === reward.points;
+
+                return (
+                  <button
+                    key={reward.points}
+                    type="button"
+                    disabled={!unlocked || Boolean(redeemingChildReward)}
+                    onClick={() => redeemOwnReward(reward)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(36,35,66,.12)',
+                      background: unlocked ? 'white' : 'rgba(255,255,255,.4)',
+                      cursor: unlocked ? 'pointer' : 'not-allowed',
+                      opacity: unlocked ? 1 : 0.55,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span>{saving ? 'Redeeming...' : reward.name}</span>
+                    <strong>{unlocked ? `${reward.points} pts • Redeem` : `${reward.points} pts`}</strong>
+                  </button>
+                );
+              })}
+            </div>
+
+            {rewardError && (
+              <div className="tm-login-error" style={{ marginTop: '10px' }}>
+                {rewardError}
+              </div>
+            )}
+          </div>
+
           <div className="side-card verse-card">
             <Trophy size={22} />
             <p>
@@ -1519,6 +1604,7 @@ function ParentDashboard({ onLogout }) {
   const [savingAssignment, setSavingAssignment] = useState(null);
   const [reviewingBonus, setReviewingBonus] = useState(null);
   const [redeemingReward, setRedeemingReward] = useState(null);
+  const [undoingReward, setUndoingReward] = useState(null);
   const [error, setError] = useState('');
   const [libraryBooks, setLibraryBooks] = useState([]);
 
@@ -1846,6 +1932,36 @@ function ParentDashboard({ onLogout }) {
 
     await loadParentDashboard();
     setRedeemingReward(null);
+  }
+
+  async function undoRewardRedemption(redemption) {
+    if (undoingReward) return;
+
+    const confirmed = window.confirm(
+      `Undo "${redemption.reward_name}" for ${childName(redemption.child_id)}?\n\nThis will restore ${Number(redemption.point_threshold)} Mission Points.`
+    );
+
+    if (!confirmed) return;
+
+    setUndoingReward(redemption.id);
+    setError('');
+
+    const { error: undoError } = await supabase.rpc(
+      'undo_reward_redemption',
+      { p_redemption_id: redemption.id }
+    );
+
+    if (undoError) {
+      console.error(undoError);
+      setError(
+        `Reward could not be undone: ${undoError.message || 'Unknown error'}`
+      );
+      setUndoingReward(null);
+      return;
+    }
+
+    await loadParentDashboard();
+    setUndoingReward(null);
   }
 
   async function undoBonusMissionReview(submissionId) {
@@ -3092,7 +3208,31 @@ function ParentDashboard({ onLogout }) {
                     {redemption.reward_name}
                   </span>
 
-                  <strong>{redemption.point_threshold} pts</strong>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}
+                  >
+                    <strong>{redemption.point_threshold} pts</strong>
+                    <button
+                      type="button"
+                      disabled={Boolean(undoingReward)}
+                      onClick={() => undoRewardRedemption(redemption)}
+                      style={{
+                        border: '1px solid rgba(36,35,66,.15)',
+                        background: 'white',
+                        color: '#181638',
+                        borderRadius: '8px',
+                        padding: '6px 9px',
+                        cursor: undoingReward ? 'wait' : 'pointer',
+                        fontWeight: 700
+                      }}
+                    >
+                      {undoingReward === redemption.id ? 'Undoing...' : 'Undo'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
