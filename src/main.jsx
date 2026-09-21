@@ -1837,7 +1837,9 @@ function ParentDashboard({ onLogout }) {
 
     if (rewardError) {
       console.error(rewardError);
-      setError('Reward could not be recorded.');
+      setError(
+        `Reward could not be recorded: ${rewardError.message || 'Unknown error'}`
+      );
       setRedeemingReward(null);
       return;
     }
