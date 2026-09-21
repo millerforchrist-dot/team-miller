@@ -2004,32 +2004,97 @@ function ParentDashboard({ onLogout }) {
     setQuizImportSuccess('');
 
     try {
-      const parsed = JSON.parse(quizImportText);
+      const text = quizImportText.replace(/\r/g, '').trim();
+      const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
 
-      if (!parsed?.book?.title || !parsed?.book?.author) {
-        throw new Error('Book title and author are required.');
+      function field(label, required = false) {
+        const line = lines.find(item =>
+          item.toUpperCase().startsWith(`${label}:`)
+        );
+        const value = line ? line.slice(line.indexOf(':') + 1).trim() : '';
+        if (required && !value) throw new Error(`${label} is required.`);
+        return value;
       }
 
-      if (!Array.isArray(parsed.questions) || parsed.questions.length !== 10) {
-        throw new Error('The package must contain exactly 10 questions.');
+      const title = field('TITLE', true);
+      const author = field('AUTHOR', true);
+      const readingLevel = field('READING LEVEL');
+      const maxPoints = Number(field('MAX POINTS', true));
+
+      if (!Number.isFinite(maxPoints) || maxPoints < 0) {
+        throw new Error('MAX POINTS must be a number.');
       }
 
-      parsed.questions.forEach((question, index) => {
-        if (!question.question || !Array.isArray(question.choices) || question.choices.length !== 4) {
+      const questionStart = lines.findIndex(line => /^1[\.\)]\s+/.test(line));
+      if (questionStart === -1) {
+        throw new Error('Start the quiz questions with "1. Question..."');
+      }
+
+      const questions = [];
+      let currentQuestion = null;
+
+      for (const line of lines.slice(questionStart)) {
+        const questionMatch = line.match(/^(\d+)[\.\)]\s+(.+)$/);
+        const choiceMatch = line.match(/^([A-D])[\.\)]\s+(.+)$/i);
+
+        if (questionMatch) {
+          if (currentQuestion) questions.push(currentQuestion);
+          currentQuestion = {
+            number: Number(questionMatch[1]),
+            question: questionMatch[2].trim(),
+            choices: []
+          };
+        } else if (choiceMatch && currentQuestion) {
+          let choiceText = choiceMatch[2].trim();
+          const correct = choiceText.endsWith('*');
+          if (correct) choiceText = choiceText.slice(0, -1).trim();
+
+          currentQuestion.choices.push({
+            letter: choiceMatch[1].toUpperCase(),
+            text: choiceText,
+            correct
+          });
+        }
+      }
+
+      if (currentQuestion) questions.push(currentQuestion);
+
+      if (questions.length !== 10) {
+        throw new Error(`The quiz must contain exactly 10 questions. I found ${questions.length}.`);
+      }
+
+      questions.forEach((question, index) => {
+        if (question.number !== index + 1) {
+          throw new Error('Questions must be numbered 1 through 10 in order.');
+        }
+        if (question.choices.length !== 4) {
           throw new Error(`Question ${index + 1} must have exactly four choices.`);
         }
-
-        const correctChoices = question.choices.filter(choice => choice.correct === true);
-        if (correctChoices.length !== 1) {
-          throw new Error(`Question ${index + 1} must have exactly one correct answer.`);
+        if (question.choices.map(choice => choice.letter).join('') !== 'ABCD') {
+          throw new Error(`Question ${index + 1} choices must be A, B, C, and D.`);
+        }
+        if (question.choices.filter(choice => choice.correct).length !== 1) {
+          throw new Error(`Question ${index + 1} needs exactly one correct answer marked with *.`);
         }
       });
 
-      setQuizImportPreview(parsed);
+      setQuizImportPreview({
+        book: {
+          title,
+          author,
+          isbn_10: field('ISBN 10') || null,
+          isbn_13: field('ISBN 13') || null,
+          reading_level: readingLevel || null,
+          maximum_points: maxPoints,
+          points_source: field('POINTS SOURCE') || 'Accelerated Reader',
+          description: field('DESCRIPTION') || ''
+        },
+        questions
+      });
     } catch (importError) {
       console.error(importError);
       setQuizImportPreview(null);
-      setQuizImportError(importError.message || 'That quiz package is not valid.');
+      setQuizImportError(importError.message || 'That quiz is not valid.');
     }
   }
 
@@ -2707,11 +2772,11 @@ function ParentDashboard({ onLogout }) {
           </div>
 
           <div style={{ width: '100%', minWidth: 0 }}>
-            <small>IMPORT A TEAM MILLER QUIZ</small>
+            <small>ADD A TEAM MILLER QUIZ</small>
             <strong>Add a Book & Quiz</strong>
             <p>
-              Paste the complete quiz package from ChatGPT, preview it, then add
-              it to the boys' Reading Challenge.
+              Paste the simple quiz text from ChatGPT. Put an * after the correct
+              answer, preview it, then add it to the boys' Reading Challenge.
             </p>
 
             <textarea
@@ -2722,8 +2787,19 @@ function ParentDashboard({ onLogout }) {
                 setQuizImportError('');
                 setQuizImportSuccess('');
               }}
-              placeholder="Paste TEAM MILLER quiz package here..."
-              rows="8"
+              placeholder={`TITLE: Skyward
+AUTHOR: Brandon Sanderson
+READING LEVEL: HL680L
+MAX POINTS: 21
+
+1. What does Spensa dream of becoming?
+A. A scientist
+B. A pilot *
+C. A teacher
+D. A mechanic
+
+Continue through question 10...`}
+              rows="16"
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -2731,8 +2807,8 @@ function ParentDashboard({ onLogout }) {
                 borderRadius: '10px',
                 border: '1px solid rgba(36,35,66,.15)',
                 resize: 'vertical',
-                fontFamily: 'monospace',
-                fontSize: '13px',
+                fontFamily: 'inherit',
+                fontSize: '14px',
                 background: 'white'
               }}
             />
