@@ -41,7 +41,8 @@ const BONUS_CATEGORIES = [
   'Prayer',
   'Scripture Memory',
   'Act of Kindness',
-  'Helped Without Being Asked'
+  'Helped Without Being Asked',
+  'Have a Good Attitude & Be Respectful'
 ];
 
 const REWARDS = [
@@ -748,7 +749,7 @@ function ChildDashboard({ user, onLogout }) {
   }
 
   async function redeemOwnReward(reward) {
-    if (redeemingChildReward || missionPoints < reward.points) return;
+    if (redeemingChildReward || totalPoints < reward.points) return;
 
     const confirmed = window.confirm(
       `Redeem "${reward.name}"?\n\nThis will deduct ${reward.points} Mission Points.`
@@ -782,11 +783,11 @@ function ChildDashboard({ user, onLogout }) {
   const totalPoints = missionPoints + readingPoints;
 
   const nextReward = REWARDS.find(
-    reward => reward.points > missionPoints
+    reward => reward.points > totalPoints
   );
 
   const progress = nextReward
-    ? Math.min((missionPoints / nextReward.points) * 100, 100)
+    ? Math.min((totalPoints / nextReward.points) * 100, 100)
     : 100;
 
   return (
@@ -865,12 +866,12 @@ function ChildDashboard({ user, onLogout }) {
 
           {nextReward && (
             <>
-              <small>{nextReward.points} Mission Points</small>
+              <small>{nextReward.points} Total Points</small>
               <div className="reward-progress">
                 <div style={{ width: `${progress}%` }} />
               </div>
               <small>
-                {nextReward.points - missionPoints} points to go
+                {nextReward.points - totalPoints} points to go
               </small>
             </>
           )}
@@ -1514,11 +1515,11 @@ function ChildDashboard({ user, onLogout }) {
               </div>
             </div>
 
-            <p>Choose any reward you have enough Mission Points to redeem.</p>
+            <p>Choose any reward you have enough Total Points to redeem.</p>
 
             <div style={{ display: 'grid', gap: '8px' }}>
               {REWARDS.map(reward => {
-                const unlocked = missionPoints >= reward.points;
+                const unlocked = totalPoints >= reward.points;
                 const saving = redeemingChildReward === reward.points;
 
                 return (
