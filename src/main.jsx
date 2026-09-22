@@ -327,6 +327,7 @@ function ChildDashboard({ user, onLogout }) {
   const [showReadingHistory, setShowReadingHistory] = useState(false);
   const [redeemingChildReward, setRedeemingChildReward] = useState(null);
   const [rewardError, setRewardError] = useState('');
+  const [features, setFeatures] = useState({});
 
   useEffect(() => {
     loadBoard();
@@ -338,6 +339,14 @@ function ChildDashboard({ user, onLogout }) {
 
     const today = localDate();
     const weekStart = currentMonday();
+
+    const { data: featureData } = await supabase
+      .from('feature_settings')
+      .select('feature_key,enabled');
+
+    setFeatures(
+      Object.fromEntries((featureData || []).map(item => [item.feature_key, item.enabled]))
+    );
 
     await supabase.rpc('ensure_weekly_assignments');
 
@@ -880,6 +889,7 @@ function ChildDashboard({ user, onLogout }) {
 
       <section className="board-layout">
         <div className="board-main">
+          {features.daily_missions !== false && <>
           <div className="section-heading">
             <div>
               <span>TODAY</span>
@@ -923,6 +933,8 @@ function ChildDashboard({ user, onLogout }) {
             </div>
           )}
 
+          </>}
+          {features.weekly_assignments !== false && <>
           <div className="section-heading lower-heading">
             <div>
               <span>YOUR WEEK</span>
@@ -962,9 +974,11 @@ function ChildDashboard({ user, onLogout }) {
               </div>
             ))
           )}
+          </>}
         </div>
 
         <aside className="board-side">
+          {features.laundry !== false && <>
           <div className="side-card laundry-card">
             <div className="side-card-title">
               <Shirt size={23} />
@@ -1103,6 +1117,9 @@ function ChildDashboard({ user, onLogout }) {
             </div>
           </div>
 
+          </>}
+
+          {features.bonus_missions !== false && (
           <div className="side-card bonus-card">
             <div className="side-card-title">
               <Star size={23} />
@@ -1226,6 +1243,9 @@ function ChildDashboard({ user, onLogout }) {
             )}
           </div>
 
+          )}
+
+          {features.reading_challenge !== false && <>
           <div className="side-card reading-card">
             <div className="side-card-title">
               <BookOpen size={23} />
@@ -1506,6 +1526,9 @@ function ChildDashboard({ user, onLogout }) {
             )}
           </div>
 
+          </>}
+
+          {features.rewards !== false && (
           <div className="side-card bonus-card">
             <div className="side-card-title">
               <Gift size={23} />
@@ -1561,6 +1584,8 @@ function ChildDashboard({ user, onLogout }) {
               </div>
             )}
           </div>
+
+          )}
 
           <div className="side-card verse-card">
             <Trophy size={22} />
@@ -1619,6 +1644,8 @@ function ParentDashboard({ onLogout }) {
   const [quizImportError, setQuizImportError] = useState('');
   const [importingQuiz, setImportingQuiz] = useState(false);
   const [quizImportSuccess, setQuizImportSuccess] = useState('');
+  const [features, setFeatures] = useState({});
+  const [savingFeature, setSavingFeature] = useState('');
 
   useEffect(() => {
     loadParentDashboard();
@@ -1629,6 +1656,17 @@ function ParentDashboard({ onLogout }) {
     setError('');
 
     await supabase.rpc('ensure_weekly_assignments');
+
+    const { data: featureData, error: featureError } = await supabase
+      .from('feature_settings')
+      .select('feature_key,enabled')
+      .order('feature_key');
+
+    if (!featureError) {
+      setFeatures(
+        Object.fromEntries((featureData || []).map(item => [item.feature_key, item.enabled]))
+      );
+    }
 
     const weekStart = currentMonday();
 
@@ -1786,6 +1824,30 @@ function ParentDashboard({ onLogout }) {
 
     setWeeklyAssignments(sortedAssignments);
     setLoading(false);
+  }
+
+  async function toggleFeature(featureKey) {
+    if (savingFeature) return;
+
+    setSavingFeature(featureKey);
+    setError('');
+
+    const newValue = !(features[featureKey] ?? true);
+
+    const { error: featureError } = await supabase
+      .from('feature_settings')
+      .update({ enabled: newValue, updated_at: new Date().toISOString() })
+      .eq('feature_key', featureKey);
+
+    if (featureError) {
+      console.error(featureError);
+      setError('Feature setting could not be changed.');
+      setSavingFeature('');
+      return;
+    }
+
+    setFeatures(current => ({ ...current, [featureKey]: newValue }));
+    setSavingFeature('');
   }
 
   async function approveLaundry(childId, laundryDate) {
@@ -2358,6 +2420,56 @@ function ParentDashboard({ onLogout }) {
         }}
       >
         {error && <div className="tm-login-error">{error}</div>}
+
+        <div className="section-heading">
+          <div>
+            <span>FAMILY SETTINGS</span>
+            <h2>Features</h2>
+          </div>
+          <Sparkles size={24} />
+        </div>
+
+        <div className="weekly-placeholder" style={{ alignItems: 'flex-start', marginBottom: '28px' }}>
+          <div style={{ width: '100%' }}>
+            <small>TURN FEATURES ON OR OFF</small>
+            <strong>Family Mission Portal Features</strong>
+            <div style={{ display: 'grid', gap: '10px', marginTop: '14px' }}>
+              {[
+                ['daily_missions', 'Daily Missions'],
+                ['weekly_assignments', 'Weekly Assignments'],
+                ['laundry', 'Laundry'],
+                ['bonus_missions', 'Bonus Missions'],
+                ['reading_challenge', 'Reading Challenge'],
+                ['rewards', 'Rewards'],
+                ['missed_chore_penalties', 'Missed Chore Penalties']
+              ].map(([key, label]) => {
+                const enabled = features[key] ?? true;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={Boolean(savingFeature)}
+                    onClick={() => toggleFeature(key)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '11px 13px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(36,35,66,.12)',
+                      background: 'white',
+                      cursor: savingFeature ? 'wait' : 'pointer',
+                      fontWeight: 800
+                    }}
+                  >
+                    <span>{label}</span>
+                    <span>{enabled ? 'ON' : 'OFF'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
         <div className="section-heading">
           <div>
