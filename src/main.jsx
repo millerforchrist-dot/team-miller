@@ -311,6 +311,7 @@ function ChildDashboard({ user, onLogout }) {
   const [bonusSuccess, setBonusSuccess] = useState('');
 
   const [readingPoints, setReadingPoints] = useState(0);
+  const [readingPointsSpent, setReadingPointsSpent] = useState(0);
   const [books, setBooks] = useState([]);
   const [readingOpen, setReadingOpen] = useState(false);
   const [bookSearch, setBookSearch] = useState('');
@@ -360,6 +361,7 @@ function ChildDashboard({ user, onLogout }) {
       fridayLaundryResult,
       booksResult,
       readingPointsResult,
+      readingSpendingResult,
       readingHistoryResult,
       activityResult
     ] = await Promise.all([
@@ -413,6 +415,11 @@ function ChildDashboard({ user, onLogout }) {
 
       supabase
         .from('reading_point_transactions')
+        .select('amount')
+        .eq('child_id', user.id),
+
+      supabase
+        .from('reading_point_spending')
         .select('amount')
         .eq('child_id', user.id),
 
@@ -498,6 +505,18 @@ function ChildDashboard({ user, onLogout }) {
     } else {
       setReadingPoints(
         (readingPointsResult.data || []).reduce(
+          (total, transaction) =>
+            total + Number(transaction.amount || 0),
+          0
+        )
+      );
+    }
+
+    if (readingSpendingResult.error) {
+      console.error(readingSpendingResult.error);
+    } else {
+      setReadingPointsSpent(
+        (readingSpendingResult.data || []).reduce(
           (total, transaction) =>
             total + Number(transaction.amount || 0),
           0
@@ -761,7 +780,7 @@ function ChildDashboard({ user, onLogout }) {
     if (redeemingChildReward || totalPoints < reward.points) return;
 
     const confirmed = window.confirm(
-      `Redeem "${reward.name}"?\n\nThis will deduct ${reward.points} Mission Points.`
+      `Redeem "${reward.name}"?\n\nThis will deduct ${reward.points} Total Points.`
     );
 
     if (!confirmed) return;
@@ -789,7 +808,8 @@ function ChildDashboard({ user, onLogout }) {
     setRedeemingChildReward(null);
   }
 
-  const totalPoints = missionPoints + readingPoints;
+  const availableReadingPoints = Math.max(readingPoints - readingPointsSpent, 0);
+  const totalPoints = missionPoints + availableReadingPoints;
 
   const nextReward = REWARDS.find(
     reward => reward.points > totalPoints
@@ -851,7 +871,7 @@ function ChildDashboard({ user, onLogout }) {
             <BookOpen size={25} />
           </div>
           <span>READING POINTS</span>
-          <strong>{readingPoints}</strong>
+          <strong>{availableReadingPoints}</strong>
           <small>Every book is an adventure.</small>
         </div>
 
@@ -1533,7 +1553,7 @@ function ChildDashboard({ user, onLogout }) {
             <div className="side-card-title">
               <Gift size={23} />
               <div>
-                <small>SPEND MISSION POINTS</small>
+                <small>SPEND TOTAL POINTS</small>
                 <h3>Rewards</h3>
               </div>
             </div>
@@ -1608,6 +1628,7 @@ function ParentDashboard({ onLogout }) {
   const [weeklyAssignments, setWeeklyAssignments] = useState([]);
   const [bonusMissions, setBonusMissions] = useState([]);
   const [childPoints, setChildPoints] = useState({});
+  const [childReadingPoints, setChildReadingPoints] = useState({});
   const [rewardRedemptions, setRewardRedemptions] = useState([]);
   const [readingAttempts, setReadingAttempts] = useState([]);
   const [activityTransactions, setActivityTransactions] = useState([]);
@@ -1676,6 +1697,8 @@ function ParentDashboard({ onLogout }) {
       weeklyResult,
       bonusResult,
       pointsResult,
+      readingPointsResult,
+      readingSpendingResult,
       rewardsResult,
       fridayLaundryResult,
       libraryResult,
@@ -1706,6 +1729,14 @@ function ParentDashboard({ onLogout }) {
 
       supabase
         .from('mission_point_transactions')
+        .select('child_id,amount'),
+
+      supabase
+        .from('reading_point_transactions')
+        .select('child_id,amount'),
+
+      supabase
+        .from('reading_point_spending')
         .select('child_id,amount'),
 
       supabase
@@ -1753,6 +1784,8 @@ function ParentDashboard({ onLogout }) {
       weeklyResult.error ||
       bonusResult.error ||
       pointsResult.error ||
+      readingPointsResult.error ||
+      readingSpendingResult.error ||
       rewardsResult.error ||
       fridayLaundryResult.error ||
       libraryResult.error ||
@@ -1766,6 +1799,8 @@ function ParentDashboard({ onLogout }) {
         weeklyResult.error,
         bonusResult.error,
         pointsResult.error,
+        readingPointsResult.error,
+        readingSpendingResult.error,
         rewardsResult.error,
         fridayLaundryResult.error,
         libraryResult.error,
@@ -1815,6 +1850,29 @@ function ParentDashboard({ onLogout }) {
     });
 
     setChildPoints(totals);
+
+    const readingTotals = {};
+    (profilesResult.data || []).forEach(child => {
+      readingTotals[child.id] = 0;
+    });
+
+    (readingPointsResult.data || []).forEach(transaction => {
+      readingTotals[transaction.child_id] =
+        (readingTotals[transaction.child_id] || 0) +
+        Number(transaction.amount || 0);
+    });
+
+    (readingSpendingResult.data || []).forEach(transaction => {
+      readingTotals[transaction.child_id] =
+        (readingTotals[transaction.child_id] || 0) -
+        Number(transaction.amount || 0);
+    });
+
+    Object.keys(readingTotals).forEach(childId => {
+      readingTotals[childId] = Math.max(readingTotals[childId], 0);
+    });
+
+    setChildReadingPoints(readingTotals);
 
     const sortedAssignments = WEEKLY_TASKS.map(task =>
       (weeklyResult.data || []).find(
@@ -1974,17 +2032,19 @@ function ParentDashboard({ onLogout }) {
   async function redeemReward(child, reward) {
     if (redeemingReward) return;
 
-    const points = Number(childPoints[child.id] || 0);
+    const mission = Number(childPoints[child.id] || 0);
+    const reading = Number(childReadingPoints[child.id] || 0);
+    const points = mission + reading;
 
     if (points < reward.points) {
       setError(
-        `${child.name} needs ${reward.points - points} more Mission Points for ${reward.name}.`
+        `${child.name} needs ${reward.points - points} more Total Points for ${reward.name}.`
       );
       return;
     }
 
     const confirmed = window.confirm(
-      `Redeem "${reward.name}" for ${child.name}?\n\nThis will deduct ${reward.points} Mission Points.`
+      `Redeem "${reward.name}" for ${child.name}?\n\nThis will deduct ${reward.points} Total Points.`
     );
 
     if (!confirmed) return;
@@ -2019,7 +2079,7 @@ function ParentDashboard({ onLogout }) {
     if (undoingReward) return;
 
     const confirmed = window.confirm(
-      `Undo "${redemption.reward_name}" for ${childName(redemption.child_id)}?\n\nThis will restore ${Number(redemption.point_threshold)} Mission Points.`
+      `Undo "${redemption.reward_name}" for ${childName(redemption.child_id)}?\n\nThis will restore the ${Number(redemption.point_threshold)} Total Points used for this reward.`
     );
 
     if (!confirmed) return;
@@ -2366,14 +2426,6 @@ function ParentDashboard({ onLogout }) {
     );
   }
 
-  function childReadingPoints(childId) {
-    return readingAttempts
-      .filter(attempt => attempt.child_id === childId && attempt.is_first_attempt)
-      .reduce(
-        (total, attempt) => total + Number(attempt.reading_points_earned || 0),
-        0
-      );
-  }
 
   function childBooksCompleted(childId) {
     return new Set(
@@ -2676,7 +2728,7 @@ function ParentDashboard({ onLogout }) {
           >
             {children.map(child => {
               const mission = Number(childPoints[child.id] || 0);
-              const reading = childReadingPoints(child.id);
+              const reading = Number(childReadingPoints[child.id] || 0);
               const total = mission + reading;
 
               return (
@@ -3105,7 +3157,9 @@ Continue through question 10...`}
             }}
           >
             {children.map(child => {
-              const points = Number(childPoints[child.id] || 0);
+              const mission = Number(childPoints[child.id] || 0);
+              const reading = Number(childReadingPoints[child.id] || 0);
+              const points = mission + reading;
 
               return (
                 <div
@@ -3118,7 +3172,7 @@ Continue through question 10...`}
                   </div>
 
                   <div style={{ width: '100%' }}>
-                    <small>{points} MISSION POINTS</small>
+                    <small>{points.toFixed(1)} TOTAL POINTS</small>
                     <strong>{child.name}'s Rewards</strong>
 
                     <div
